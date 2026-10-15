@@ -17,10 +17,10 @@ Helps users explore career opportunities based on their skills, interests, quali
 
 ## Technologies Used
 
-- Frontend: 
-- Backend: To be determined
-- AI Integration: To be determined
-- Database: To be determined 
+- Frontend: Typescript
+- Backend: Supabase
+- AI Integration: Gemini (FOR NOW)
+- Database: Supabase 
 
 ## Team Responsibilities
 
