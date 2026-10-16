@@ -83,11 +83,37 @@ async function checkAi(request, response) {
   }
 
   try {
+    const modelsResponse = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",
+      { headers: { "x-goog-api-key": apiKey } },
+    );
+
+    if (!modelsResponse.ok) {
+      throw new Error(`Gemini model discovery returned ${modelsResponse.status}`);
+    }
+
+    const modelCatalog = await modelsResponse.json();
+    const availableModels = (modelCatalog.models ?? []).filter((candidate) =>
+      candidate.supportedGenerationMethods?.includes("generateContent"),
+    );
+    const requestedName = `models/${model}`;
+    const selectedModel =
+      availableModels.find((candidate) => candidate.name === requestedName) ??
+      availableModels.find((candidate) => candidate.name?.includes("flash")) ??
+      availableModels[0];
+
+    if (!selectedModel?.name) {
+      throw new Error("No Gemini model supporting generateContent is available for this API key");
+    }
+
     const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/${selectedModel.name}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: "Reply with exactly: AI connection successful" }] }],
           generationConfig: { maxOutputTokens: 20, temperature: 0 },
