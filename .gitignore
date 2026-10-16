@@ -12,6 +12,7 @@ supabase/.branches/
 # Laravel
 /vendor/
 /node_modules/
+/.next/
 /public/build/
 /public/hot/
 /public/storage/
