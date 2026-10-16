@@ -4,18 +4,20 @@ CareerPrep AI is an AI-powered resume analyzer and mock interview platform. The 
 
 ## Week 1 Walking Skeleton
 
-- Next.js frontend with live service indicators
-- `GET /api/health` backend endpoint
+- Next.js frontend deployed on Vercel with live service indicators
+- Standalone Node.js backend deployed separately on Railway
+- `GET /health` backend endpoint
 - Supabase PostgreSQL read through `public.app_config`
-- `POST /api/ai-test` server-side Gemini connectivity test
+- `POST /ai-test` server-side Gemini connectivity test
 - GitHub Actions install, lint, and build checks on pull requests
-- Vercel-ready deployment configuration
+- Vercel frontend and Railway backend deployment configuration
 
 Future iterations will add authentication, PDF/DOCX resume upload, resume analysis, job-description matching, interview questions, and answer evaluation.
 
 ## Technology
 
-- Frontend and backend: Next.js, React, TypeScript
+- Frontend: Next.js, React, TypeScript on Vercel
+- Backend: Node.js HTTP API on Railway
 - Database: Supabase PostgreSQL
 - AI provider: Google Gemini
 - CI: GitHub Actions
@@ -47,25 +49,35 @@ Requirements: Node.js 22+ and pnpm 11+.
 
 ```bash
 pnpm install
+Copy `.env.example` to `.env.local`, then start both services:
+
+```bash
 cp .env.example .env.local
 pnpm dev
+npm --prefix backend start
 ```
 
 Open `http://localhost:3000`.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and provide:
+The frontend uses one public variable:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+Copy `backend/.env.example` to `backend/.env` for local backend development. In Railway, configure:
+
+```env
+FRONTEND_URL=https://your-vercel-domain.vercel.app
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-`GEMINI_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are server-only secrets. Never commit `.env.local`.
+`GEMINI_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
 
 ## Database Migration
 
@@ -75,11 +87,11 @@ The larger `careerprep` schema is private by design and is reserved for future a
 
 ## API Endpoints
 
-### `GET /api/health`
+### `GET /health`
 
 Returns frontend/backend database connectivity information. When Supabase is configured, the application name is read from PostgreSQL.
 
-### `POST /api/ai-test`
+### `POST /ai-test`
 
 Makes a minimal Gemini request from the server. The API key is never sent to the browser.
 
@@ -90,15 +102,24 @@ pnpm lint
 pnpm build
 ```
 
-GitHub Actions runs install, lint, and build on every pull request and on pushes to `main`.
+GitHub Actions runs frontend install, lint, build, and a backend syntax check on every pull request and on pushes to `main`.
 
 ## Deployment
 
-1. Import the GitHub repository into Vercel.
-2. Add the environment variables from `.env.example` in Vercel project settings.
-3. Deploy the `main` branch.
-4. Verify the homepage, `/api/health`, and the **Test AI connection** button.
-5. Add the production URL to this README.
+### Backend on Railway
+
+1. Create a Railway service from this GitHub repository.
+2. Set the service **Root Directory** to `/backend`.
+3. Add the variables from `backend/.env.example` (Railway supplies `PORT`).
+4. Generate a public Railway domain and verify `/`, `/health`, and `POST /ai-test`.
+
+### Frontend on Vercel
+
+1. Import the same GitHub repository into Vercel using the repository root.
+2. Set `NEXT_PUBLIC_API_URL` to the public Railway domain, without a trailing slash.
+3. Redeploy the `main` branch.
+4. Set Railway's `FRONTEND_URL` to the final Vercel URL.
+5. Verify all four service indicators and the **Test AI connection** button.
 
 ## Week 1 Evidence Checklist
 

@@ -33,3 +33,5 @@ jobs:
         run: pnpm lint
       - name: Build
         run: pnpm build
+      - name: Check Railway backend
+        run: npm --prefix backend run check
