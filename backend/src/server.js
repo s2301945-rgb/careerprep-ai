@@ -97,31 +97,39 @@ async function checkAi(request, response) {
       candidate.supportedGenerationMethods?.includes("generateContent"),
     );
     const requestedName = `models/${model}`;
-    const selectedModel =
-      availableModels.find((candidate) => candidate.name === requestedName) ??
-      availableModels.find((candidate) => candidate.name?.includes("flash")) ??
-      availableModels[0];
+    const modelNames = [
+      ...availableModels.filter((candidate) => candidate.name === requestedName),
+      ...availableModels.filter((candidate) => candidate.name?.includes("flash")),
+      ...availableModels,
+    ]
+      .map((candidate) => candidate.name)
+      .filter((name, index, names) => name && names.indexOf(name) === index);
 
-    if (!selectedModel?.name) {
+    if (modelNames.length === 0) {
       throw new Error("No Gemini model supporting generateContent is available for this API key");
     }
 
-    const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${selectedModel.name}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
+    let aiResponse;
+    for (const modelName of modelNames) {
+      aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Reply with exactly: AI connection successful" }] }],
+            generationConfig: { maxOutputTokens: 20, temperature: 0 },
+          }),
         },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Reply with exactly: AI connection successful" }] }],
-          generationConfig: { maxOutputTokens: 20, temperature: 0 },
-        }),
-      },
-    );
+      );
 
-    if (!aiResponse.ok) throw new Error(`Gemini returned ${aiResponse.status}`);
+      if (aiResponse.ok || aiResponse.status !== 404) break;
+    }
+
+    if (!aiResponse?.ok) throw new Error(`Gemini returned ${aiResponse?.status ?? "no response"}`);
 
     return sendJson(request, response, 200, {
       ai: "connected",
