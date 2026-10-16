@@ -33,7 +33,7 @@ Future iterations will add authentication, PDF/DOCX resume upload, resume analys
 | Database developer | Schema design and migrations |
 | DevOps / QA | CI, testing, and deployment |
 
-Team members may hold more than one role. Add member names beside these roles before the consultation.
+Team members may hold more than one role. Responsibilities are shared across the project team.
 
 ## Branch Strategy
 
@@ -49,6 +49,8 @@ Requirements: Node.js 22+ and pnpm 11+.
 
 ```bash
 pnpm install
+```
+
 Copy `.env.example` to `.env.local`, then start both services:
 
 ```bash
@@ -106,6 +108,13 @@ GitHub Actions runs frontend install, lint, build, and a backend syntax check on
 
 ## Deployment
 
+### Live Week 1 deployment
+
+- Frontend: https://careerprep-ai-ten.vercel.app
+- Backend: https://careerprep-ai-production.up.railway.app
+
+The deployed frontend connects to the Railway backend, and the backend successfully reads the walking-skeleton configuration from the hosted Supabase database.
+
 ### Backend on Railway
 
 1. Create a Railway service from this GitHub repository.
@@ -128,10 +137,11 @@ GitHub Actions runs frontend install, lint, build, and a backend syntax check on
 - [x] Minimal frontend calling backend endpoints
 - [x] Backend endpoint reading from the database
 - [x] Pull-request CI for install, lint, and build
-- [ ] Supabase migrations applied to the hosted project
-- [ ] Gemini key verified through the backend
-- [ ] Production deployment available at a live URL
-- [ ] GitHub issues created for every requirement
+- [x] Supabase migrations applied to the hosted project
+- [x] Production deployment available at a live URL
+- [x] Branch protection requires pull requests and passing CI
+- [x] GitHub issues created for the Week 1 requirements
+- [ ] Gemini key verified through the backend — integration code is complete, but the live check is currently blocked by API-key authorization
 
 ## Security
 
