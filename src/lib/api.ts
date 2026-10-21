@@ -35,6 +35,11 @@ export type HealthResponse = {
   message?: string;
 };
 
+export type ReadinessResponse = {
+  backend?: "connected" | "not_configured" | "error";
+  database?: "connected" | "not_configured" | "error";
+};
+
 export type AiTestResponse = {
   ai: "connected" | "not_configured" | "error";
   message: string;
@@ -206,7 +211,28 @@ export async function getHealth() {
   } catch {
     throw new ApiError("The backend returned an unreadable health response.", { status: response.status });
   }
-  if (!response.ok) throw new ApiError(payload.message ?? "The backend health check failed.", { status: response.status });
+  if (!response.ok && !payload.backend) throw new ApiError(payload.message ?? "The backend health check failed.", { status: response.status });
+  return payload;
+}
+
+export async function getReadiness() {
+  if (!apiBase) throw new ApiError("The application API is not configured yet.", { status: 0 });
+  let response: Response;
+  try {
+    response = await fetch(`${apiBase}/ready`, { cache: "no-store" });
+  } catch {
+    throw new ApiError("The application database readiness check could not be reached.", { status: 0, retryable: true });
+  }
+
+  let payload: ReadinessResponse = {};
+  try {
+    payload = (await response.json()) as ReadinessResponse;
+  } catch {
+    throw new ApiError("The application database readiness response could not be read.", { status: response.status });
+  }
+  if (!response.ok || payload.database !== "connected") {
+    throw new ApiError("The private application database is unavailable.", { status: response.status || 503, retryable: true });
+  }
   return payload;
 }
 
