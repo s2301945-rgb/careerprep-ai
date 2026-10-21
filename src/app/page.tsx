@@ -1,63 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-type ServiceState = "checking" | "connected" | "not_configured" | "error";
-type HealthResponse = { application: string; backend: "connected"; database: ServiceState; message?: string };
-const labels: Record<ServiceState, string> = { checking: "Checking", connected: "Connected", not_configured: "Not configured", error: "Unavailable" };
-const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-
-function StatusBadge({ status }: { status: ServiceState }) {
-  return <span className={`status status-${status}`}><span aria-hidden="true" className="status-dot" />{labels[status]}</span>;
-}
+import { useEffect, useRef, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { AuthPanel } from "@/components/auth-panel";
+import { ResumeWorkspace } from "@/components/resume-workspace";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export default function Home() {
-  const [health, setHealth] = useState<HealthResponse>({
-    application: "CareerPrep AI",
-    backend: "connected",
-    database: apiUrl ? "checking" : "not_configured",
-    message: apiUrl ? undefined : "Add NEXT_PUBLIC_API_URL in Vercel.",
-  });
-  const [aiStatus, setAiStatus] = useState<ServiceState>("not_configured");
-  const [aiMessage, setAiMessage] = useState("Run a small server-side request to verify the Gemini API key.");
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [sessionNotice, setSessionNotice] = useState("");
+  const hadSession = useRef(false);
+  const signingOut = useRef(false);
 
   useEffect(() => {
-    if (!apiUrl) return;
-    fetch(`${apiUrl}/health`).then(async (response) => setHealth(await response.json())).catch(() => setHealth((current) => ({ ...current, database: "error", message: "The Railway backend could not be reached." })));
+    if (!supabase) return;
+    let active = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!active) return;
+      if (event === "SIGNED_OUT" && hadSession.current && !signingOut.current) {
+        setSessionNotice("Your session has expired. Sign in again to continue.");
+      }
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") setSessionNotice("");
+      if (nextSession) hadSession.current = true;
+      if (event === "SIGNED_OUT") hadSession.current = false;
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setSessionNotice("Your saved session could not be restored. Please sign in again.");
+      } else {
+        setSession(data.session);
+        hadSession.current = Boolean(data.session);
+      }
+      setAuthReady(true);
+    }).catch(() => {
+      if (!active) return;
+      setSessionNotice("Your saved session could not be restored. Please sign in again.");
+      setAuthReady(true);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  async function testAi() {
-    setAiStatus("checking");
-    setAiMessage("Contacting Gemini from the backend...");
-    try {
-      if (!apiUrl) throw new Error("Backend URL is not configured");
-      const response = await fetch(`${apiUrl}/ai-test`, { method: "POST" });
-      const data = (await response.json()) as { ai: ServiceState; message: string };
-      setAiStatus(data.ai);
-      setAiMessage(data.message);
-    } catch {
-      setAiStatus("error");
-      setAiMessage("The AI connectivity test could not be completed.");
+  async function signOut() {
+    if (!supabase) return;
+    signingOut.current = true;
+    const { error } = await supabase.auth.signOut();
+    signingOut.current = false;
+    if (error) {
+      setSessionNotice("Sign out could not be completed. Please try again.");
+      return;
     }
+    hadSession.current = false;
+    setSession(null);
+    setSessionNotice("");
   }
 
-  return (
-    <main>
-      <section className="hero">
-        <div className="eyebrow">Week 1 · Walking Skeleton</div>
-        <h1>{health.application}</h1>
-        <p>An AI resume analyzer and mock interview platform. This foundation proves the frontend, backend, database, CI, and AI integration can work together end to end.</p>
-      </section>
-      <section className="card" aria-labelledby="system-status">
-        <div className="card-heading"><div><p className="section-label">System check</p><h2 id="system-status">Connection status</h2></div><span className="build-label">Foundation build</span></div>
-        <div className="status-grid">
-          <article><h3>Frontend</h3><StatusBadge status="connected" /><p>The Next.js interface is running.</p></article>
-          <article><h3>Backend</h3><StatusBadge status={health.database === "checking" ? "checking" : health.backend === "connected" ? "connected" : "error"} /><p>The API is deployed separately on Railway.</p></article>
-          <article><h3>Supabase</h3><StatusBadge status={health.database} /><p>{health.message ?? "Reading project data from PostgreSQL."}</p></article>
-          <article><h3>Gemini AI</h3><StatusBadge status={aiStatus} /><p>{aiMessage}</p><button disabled={aiStatus === "checking"} onClick={testAi}>{aiStatus === "checking" ? "Testing..." : "Test AI connection"}</button></article>
-        </div>
-      </section>
-      <footer>Resume analysis and mock interviews will be delivered in future iterations.</footer>
-    </main>
-  );
+  if (!authReady) {
+    return <main className="auth-loading" aria-live="polite"><span className="brand-mark" aria-hidden="true"><span /><span /><span /></span><span className="spinner spinner-dark" /><p>Restoring your private workspace…</p></main>;
+  }
+
+  if (!session) return <AuthPanel sessionNotice={sessionNotice} />;
+  return <ResumeWorkspace email={session.user.email ?? "Your account"} onSignOut={() => void signOut()} sessionNotice={sessionNotice} />;
 }
