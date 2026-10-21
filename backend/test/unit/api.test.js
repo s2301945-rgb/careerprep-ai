@@ -149,7 +149,9 @@ const storage = {
 };
 
 function publicResume(resume) {
-  const { ownerUserId, storagePath, ...result } = resume;
+  const result = { ...resume };
+  delete result.ownerUserId;
+  delete result.storagePath;
   return result;
 }
 
