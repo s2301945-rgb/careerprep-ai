@@ -70,5 +70,5 @@
     "signed_out_api_probe_performed": false,
     "note": "No sign-in or provider action was initiated. Backend API diagnostics are authenticated UI and were not exercised; expected missing API configuration remains separate from this signed-out page check."
   },
-  "screenshot": "state/screenshots/vercel-signed-out.png"
+  "screenshot": "vercel-signed-out.png"
 }
