@@ -68,5 +68,5 @@ export default function Home() {
   }
 
   if (!session) return <AuthPanel sessionNotice={sessionNotice} />;
-  return <ResumeWorkspace email={session.user.email ?? "Your account"} onSignOut={() => void signOut()} sessionNotice={sessionNotice} />;
+  return <ResumeWorkspace key={session.user.id} email={session.user.email ?? "Your account"} onSignOut={() => void signOut()} sessionNotice={sessionNotice} />;
 }

@@ -239,7 +239,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .diagnostics-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .diagnostics-heading h2 { margin-bottom: 0; font-size: 1.1rem; }
 .diagnostics-lock { padding: 5px 8px; border: 1px solid #e2ebe6; border-radius: 999px; color: #668177; background: #f7faf8; font-size: .62rem; font-weight: 700; }
-.diagnostics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.diagnostics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .diagnostic-item { min-width: 0; padding: 12px; border: 1px solid #edf1ee; border-radius: 9px; background: #fcfdfc; }
 .diagnostic-topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; color: #53635e; font-size: .71rem; font-weight: 710; }
 .diagnostic-item > p { min-height: 34px; margin: 8px 0 0; color: #929d98; font-size: .65rem; line-height: 1.5; }
@@ -301,6 +301,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
   .resume-row .document-icon { width: 39px; height: 41px; }
   .row-action { grid-column: 2; justify-self: start; min-height: 25px; margin-top: -2px; padding: 0; }
   .resume-row { row-gap: 5px; }
+  .diagnostics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 880px) {
   .workspace-columns { grid-template-columns: minmax(0, 1fr); }

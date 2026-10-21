@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApiBaseUrl, getHealth, testAiConnection, type AiTestResponse, type HealthResponse } from "@/lib/api";
+import { getApiBaseUrl, getHealth, getReadiness, testAiConnection, type AiTestResponse, type HealthResponse } from "@/lib/api";
 
 type CheckState = "checking" | "connected" | "not_configured" | "error" | "unchecked";
 const statusLabel: Record<CheckState, string> = {
@@ -25,7 +25,9 @@ function normalizeState(value: string | undefined): CheckState {
 export function ServiceDiagnostics() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthState, setHealthState] = useState<CheckState>(getApiBaseUrl() ? "checking" : "not_configured");
-  const [healthMessage, setHealthMessage] = useState(getApiBaseUrl() ? "Reading backend service health." : "Set NEXT_PUBLIC_API_URL to check backend availability.");
+  const [healthMessage, setHealthMessage] = useState(getApiBaseUrl() ? "Checking the backend health endpoint." : "The backend API is not configured.");
+  const [readinessState, setReadinessState] = useState<CheckState>(getApiBaseUrl() ? "checking" : "not_configured");
+  const [readinessMessage, setReadinessMessage] = useState(getApiBaseUrl() ? "Checking the private application database." : "The application API is not configured.");
   const [ai, setAi] = useState<AiTestResponse | null>(null);
   const [aiState, setAiState] = useState<CheckState>("unchecked");
   const [aiMessage, setAiMessage] = useState("Run an authenticated request to verify the AI provider.");
@@ -37,11 +39,20 @@ export function ServiceDiagnostics() {
       if (!active) return;
       setHealth(result);
       setHealthState(result.backend === "connected" ? "connected" : normalizeState(result.backend));
-      setHealthMessage(result.message ?? "Backend health check finished.");
+      setHealthMessage(result.backend === "connected" ? "The backend health endpoint responded." : result.message ?? "The backend health check finished.");
     }).catch((reason: unknown) => {
       if (!active) return;
       setHealthState("error");
       setHealthMessage(reason instanceof Error ? reason.message : "The backend health check failed.");
+    });
+    getReadiness().then((result) => {
+      if (!active) return;
+      setReadinessState(normalizeState(result.database));
+      setReadinessMessage(result.database === "connected" ? "The private application database is ready." : "The private application database is unavailable.");
+    }).catch((reason: unknown) => {
+      if (!active) return;
+      setReadinessState("error");
+      setReadinessMessage(reason instanceof Error ? reason.message : "The private application database is unavailable.");
     });
     return () => { active = false; };
   }, []);
@@ -61,7 +72,7 @@ export function ServiceDiagnostics() {
     }
   }
 
-  const databaseState = health ? normalizeState(health.database) : healthState === "checking" ? "checking" : healthState;
+  const metadataState = health ? normalizeState(health.database) : healthState === "checking" ? "checking" : healthState;
 
   return (
     <section className="diagnostics-card" aria-labelledby="diagnostics-title">
@@ -78,8 +89,12 @@ export function ServiceDiagnostics() {
           <p>{healthMessage}</p>
         </div>
         <div className="diagnostic-item">
-          <div className="diagnostic-topline"><span>Database</span><StatusPill state={databaseState} /></div>
-          <p>{health?.database === "connected" ? "Backend metadata read succeeded." : health?.database === "error" ? "Backend could not read database metadata." : health?.database === "not_configured" ? "Database settings are not configured on the backend." : "Database state follows the backend health response."}</p>
+          <div className="diagnostic-topline"><span>Application database</span><StatusPill state={readinessState} /></div>
+          <p>{readinessMessage}</p>
+        </div>
+        <div className="diagnostic-item">
+          <div className="diagnostic-topline"><span>Project metadata</span><StatusPill state={metadataState} /></div>
+          <p>{health?.message ?? (metadataState === "checking" ? "Checking public Supabase project metadata." : metadataState === "not_configured" ? "Public Supabase metadata is not configured." : "The public Supabase metadata check is unavailable.")}</p>
         </div>
         <div className="diagnostic-item diagnostic-ai">
           <div className="diagnostic-topline"><span>AI provider</span><StatusPill state={aiState} /></div>
