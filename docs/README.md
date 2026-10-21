@@ -17,6 +17,7 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 | [Discovery session and decisions](04-discovery-and-decisions.md) | Confirmed answers, assumptions, unresolved questions, and the ongoing focused interview. |
 | [Backend delivery plan](05-backend-delivery-plan.md) | Proposed schedule through November 17, team handoffs, and a guided starting path for a backend engineer building experience. |
 | [Sprint delivery record](06-sprint-log.md) | Official Sprint 1–2 scope, tracked work, live starting evidence, and review/deployment acceptance gates. |
+| [Pipeline and environments](07-pipeline-and-environments.md) | Automated checks, hosting settings, environment separation, deploy/rollback runbook and measured pipeline baseline. |
 
 ## Confirmed direction
 
