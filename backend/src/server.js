@@ -334,7 +334,7 @@ export function createApp({
             fileSizeBytes: parsed.file.buffer.length,
             storagePath,
           });
-        } catch (error) {
+        } catch {
           await repo.queueUploadCleanup(cleanupTask.id, "DATABASE_WRITE_FAILED").catch(() => {});
           const queued = await repo.getCleanupTaskById(cleanupTask.id).catch(() => null);
           await finishResumeDeletion(queued, repo, storage).catch(() => false);
