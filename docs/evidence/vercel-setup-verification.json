@@ -1,0 +1,74 @@
+{
+  "checked_at_utc": "2026-10-21T17:49:01.372Z",
+  "deployment": "https://careerprep-ai-seven.vercel.app",
+  "result": "passed",
+  "browser": {
+    "engine": "Chromium",
+    "version": "156.0.8078.4",
+    "viewport": "1440x1000",
+    "fresh_context": true
+  },
+  "page": {
+    "status": 200,
+    "signed_out_sign_in_form_visible": true,
+    "email_and_password_fields_visible": true,
+    "sign_in_button_visible": true,
+    "invalid_supabase_url_error": false
+  },
+  "runtime_errors": {
+    "console": [],
+    "page": []
+  },
+  "requests": {
+    "count": 8,
+    "origins_omitted": true,
+    "observed": [
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/055l-6tcdi4xg.css"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/2yl0cnuuofk2p.js"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/1bq4unia27j2s.js"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/2zpw2h-dww7ep.js"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/turbopack-1cvbnb3nlabgn.js"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/036dn74qb0_e8.js"
+      },
+      {
+        "method": "GET",
+        "host_kind": "deployment",
+        "pathname": "/_next/static/immutable/chunks/0jcd02bf7xj2h.js"
+      }
+    ],
+    "auth_mutations_or_provider_calls_blocked": []
+  },
+  "api_configuration": {
+    "signed_out_api_probe_performed": false,
+    "note": "No sign-in or provider action was initiated. Backend API diagnostics are authenticated UI and were not exercised; expected missing API configuration remains separate from this signed-out page check."
+  },
+  "screenshot": "state/screenshots/vercel-signed-out.png"
+}

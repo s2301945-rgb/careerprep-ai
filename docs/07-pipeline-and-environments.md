@@ -76,13 +76,14 @@ Values below use GitHub Actions **job start to job completion**, excluding queue
 | Foundation PR #21 | 39636359817 | **35 s (0.58 min)**, passed |
 | API PR #22, commit `e3261fb` | 39644199157 | API/PostgreSQL **24 s**, frontend **28 s**, prototype **13 s**; all passed |
 | UI PR #23, commit `8875625` | 39645066887 | API/PostgreSQL **21 s**, frontend **32 s**, prototype **12 s**; all passed |
+| Delivery PR #24, commit `e9f1dcb` | 39647136503 | API/PostgreSQL **27 s**, frontend **34 s**, prototype **11 s**; all passed |
 
 Sources: [main baseline](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/39622375992), [foundation PR](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/39636359817); other run IDs can be opened under this repository's Actions page.
 
 | Sprint | Avg PR pipeline time | Main time | Success rate | Production deploys | Merge-to-live | Failed deploys | Recovery | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 baseline sample | 0.46 min job time | 0.42 min job time | 100% of 9 sampled runs | Not fully measured | Not measured | Not fully measured | Not measured | Existing cached install/lint/build pipeline |
-| 2 implementation | Final API/UI runs: longest jobs 28/32 s; mean 30 s (0.50 min), excluding queue time | Pending merge | 2/2 recorded final API/UI runs passed | Replacement frontend setup deployment ready; full-stack acceptance pending | Pending merge | Railway rejected project creation during provider outage | Pending provider recovery | Add API/PostgreSQL tests, parallel jobs, cancellation and bounded smoke |
+| 2 implementation | Recorded API/UI/delivery runs: longest jobs 28/32/34 s; mean 31.3 s (0.52 min), excluding queue time | Pending merge | 3/3 recorded runs passed | Replacement frontend setup deployment ready; full-stack acceptance pending | Pending merge | Railway rejected project creation during provider outage | Pending provider recovery | Add API/PostgreSQL tests, parallel jobs, cancellation and bounded smoke |
 | 3 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
 | 4 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
 
