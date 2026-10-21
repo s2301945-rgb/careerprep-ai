@@ -33,10 +33,10 @@ flowchart LR
 ## Admin setup before merging
 
 1. In the GitHub repository settings, edit the active `Protect main` ruleset. Require at least one approving teammate review and the three CI checks listed above. Keep force-push/deletion protection. The inspected ruleset currently requires PRs but zero approvals and no status checks; the implementation contributor cannot change admin settings with the current access.
-2. In Railway, connect the existing backend service to `main` with Root Directory `/backend`. Enable **Wait for CI** so a failed main workflow cannot deploy. Inspect the setting rather than assuming it is enabled. Railway describes this in [GitHub autodeploys](https://docs.railway.com/guides/github-autodeploys).
+2. After Railway recovers, create the authorized replacement project/service and deploy the checked backend. Configure the source for `main` with Root Directory `/backend` after the reviewed PR stack lands; connecting the earlier skeleton first would replace the reviewed test increment. Enable **Wait for CI** so a failed main workflow cannot deploy. Inspect the setting rather than assuming it is enabled. The readiness deployment check uses `/ready`, so a process with missing private-schema configuration cannot pass merely by listening. Railway describes source settings in [GitHub autodeploys](https://docs.railway.com/guides/github-autodeploys).
 3. In Vercel, use the repository root and production branch `main`; keep branch preview deployments. If available on the team's plan, configure the CI checks as [Deployment Checks](https://vercel.com/docs/deployment-checks) before production promotion. Otherwise enforce the same checks/review at GitHub merge, and document the remaining post-merge promotion limitation.
 4. Configure the per-environment variables below. New `NEXT_PUBLIC_` values require a frontend rebuild. Run the migration separately with the migration identity before deploying the new backend; the app must not auto-migrate with its runtime identity.
-5. Check the host URLs and optional GitHub public variables `PRODUCTION_FRONTEND_URL` and `PRODUCTION_API_URL`. The smoke workflow defaults to the existing recorded production URLs.
+5. Set GitHub public variables `PRODUCTION_FRONTEND_URL` and `PRODUCTION_API_URL` to the accepted replacement host URLs. Until then, the smoke workflow defaults to the existing walking-skeleton URLs and must not be reported as a passing Sprint 2 deployment check. Production deployment events include Vercel `Production` and Railway environment names ending in ` / production`.
 
 Do not enable automatic PR merging. Each dependent PR must receive a teammate review and pass its applicable checks; merge foundation, API, UI, then delivery. Change the base of the remaining stacked PRs to `main` after each dependency lands.
 
@@ -74,13 +74,15 @@ Values below use GitHub Actions **job start to job completion**, excluding queue
 | Earlier main baseline | 39622375992, 38882681889, 38882124838, 38879815725 | 22, 29, 26, 24 seconds; mean **25.25 s (0.42 min)** |
 | Sample success rate | The nine runs above | **9/9, 100%** |
 | Foundation PR #21 | 39636359817 | **35 s (0.58 min)**, passed |
+| API PR #22, commit `e3261fb` | 39644199157 | API/PostgreSQL **24 s**, frontend **28 s**, prototype **13 s**; all passed |
+| UI PR #23, commit `8875625` | 39645066887 | API/PostgreSQL **21 s**, frontend **32 s**, prototype **12 s**; all passed |
 
 Sources: [main baseline](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/39622375992), [foundation PR](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/39636359817); other run IDs can be opened under this repository's Actions page.
 
 | Sprint | Avg PR pipeline time | Main time | Success rate | Production deploys | Merge-to-live | Failed deploys | Recovery | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 baseline sample | 0.46 min job time | 0.42 min job time | 100% of 9 sampled runs | Not fully measured | Not measured | Not fully measured | Not measured | Existing cached install/lint/build pipeline |
-| 2 implementation | Record after new workflow runs | Pending merge | Record completed runs | Pending acceptance | Pending merge | Record actual outcomes | Record actual incidents | Add API/PostgreSQL tests, parallel jobs, cancellation and bounded smoke |
+| 2 implementation | Final API/UI runs: longest jobs 28/32 s; mean 30 s (0.50 min), excluding queue time | Pending merge | 2/2 recorded final API/UI runs passed | Replacement frontend setup deployment ready; full-stack acceptance pending | Pending merge | Railway rejected project creation during provider outage | Pending provider recovery | Add API/PostgreSQL tests, parallel jobs, cancellation and bounded smoke |
 | 3 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
 | 4 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
 
@@ -89,3 +91,5 @@ Optimization hypothesis: separating independent jobs and cancelling obsolete run
 ## Incident record
 
 No new main/production incident has been established from this implementation. The live Gemini probe reporting missing configuration is an observed acceptance blocker; its start time/root cause have not been established. Do not rewrite it as a verified historical outage. For an actual incident, record timestamp/environment/commit, impact, root cause, fix, prevention and recovery duration here.
+
+On October 22, 2026 (Asia/Manila), replacement Railway project creation was blocked by `Deploys have been paused temporarily`. The provider's [status page](https://status.railway.com/) reported an active dashboard/API/build outage beginning October 21 UTC. No new deployment was started and no replacement project was created. This blocks delivery, rather than demonstrating a failure or recovery of our production app. Recovery time remains unmeasured. Separately, the local hosted-provider Gemini rehearsal's 2.5-model 404 was resolved by the documented, verified `gemini-3.5-flash-lite` configuration; the existing Railway environment has not received that change.

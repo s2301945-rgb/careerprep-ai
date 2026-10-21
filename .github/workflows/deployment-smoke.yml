@@ -18,7 +18,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
       (github.event.deployment.environment == 'Production' ||
-      github.event.deployment.environment == 'resilient-solace / production'))
+      endsWith(github.event.deployment.environment, ' / production')))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

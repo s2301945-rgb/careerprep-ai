@@ -96,7 +96,7 @@ SUPABASE_RESUME_BUCKET=resumes
 DATABASE_URL=
 DATABASE_SSL_CA=
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 `GEMINI_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
@@ -167,7 +167,7 @@ Complete the [hosting configuration and two-user rehearsal](docs/07-pipeline-and
 - [x] Minimal frontend calling backend endpoints
 - [x] Backend endpoint reading from the database
 - [x] Pull-request CI for install, lint, and build
-- [ ] Full migration inventory verified against the hosted project (previously reported applied; the current live health check verifies public metadata only)
+- [x] All three migrations verified against the hosted Supabase project; limited runtime login and private bucket checked
 - [x] Production deployment available at a live URL
 - [x] Branch protection requires pull requests
 - [ ] Admin-enforced passing CI and one teammate approval
