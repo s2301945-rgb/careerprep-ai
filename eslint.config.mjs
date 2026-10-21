@@ -7,6 +7,8 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // The standalone Vite prototype has its own build configuration.
+    "CareerPrepAI/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
