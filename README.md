@@ -61,6 +61,17 @@ npm --prefix backend start
 
 Open `http://localhost:3000`.
 
+### Standalone frontend prototype
+
+The `CareerPrepAI/` directory preserves the Vite and TypeScript prototype from the `master` branch. It runs independently of the Next.js frontend at the repository root:
+
+```bash
+npm --prefix CareerPrepAI ci
+npm --prefix CareerPrepAI run dev
+```
+
+CI builds both frontends and checks the Railway backend.
+
 ## Environment Variables
 
 The frontend uses one public variable:

@@ -35,3 +35,7 @@ jobs:
         run: pnpm build
       - name: Check Railway backend
         run: npm --prefix backend run check
+      - name: Install Vite prototype dependencies
+        run: npm --prefix CareerPrepAI ci
+      - name: Build Vite prototype
+        run: npm --prefix CareerPrepAI run build
