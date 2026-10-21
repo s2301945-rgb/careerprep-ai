@@ -8,6 +8,16 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "check": "node --check src/server.js"
+    "check": "node --check src/server.js && node --check src/database.js && node --check src/multipart.js && node --check src/documents.js && node --check scripts/migrate.js",
+    "test": "node --test test/unit/api.test.js test/unit/auth.test.js test/unit/cleanup.test.js test/unit/documents.test.js",
+    "test:integration": "node --test test/integration.test.js",
+    "migrate": "node scripts/migrate.js",
+    "migrate:baseline": "node scripts/migrate.js --baseline-existing"
+  },
+  "dependencies": {
+    "busboy": "1.6.0",
+    "dotenv": "16.6.1",
+    "pg": "8.16.3",
+    "yauzl": "3.4.0"
   }
 }
