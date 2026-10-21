@@ -11,8 +11,10 @@ supabase/.branches/
 
 # Laravel
 /vendor/
-/node_modules/
+node_modules/
 /.next/
+/CareerPrepAI/dist/
+/backend/coverage/
 /public/build/
 /public/hot/
 /public/storage/
