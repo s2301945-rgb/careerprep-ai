@@ -23,7 +23,11 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (signInError) setError(signInError.message);
       } else {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password });
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { emailRedirectTo: window.location.origin },
+        });
         if (signUpError) {
           setError(signUpError.message);
         } else if (!data.session) {
