@@ -26,6 +26,8 @@ Edit the two ignored environment files locally. Existing files may already conta
 
 `backend/.env` loads automatically regardless of the shell's working directory. Process environment values take precedence. Supabase's connection panel provides direct/session-pooler URLs; use a connection reachable from Railway and keep the pool bounded. Remote TLS verifies the certificate and hostname. `sslmode=disable` is accepted only for loopback outside production; it is not a hosted workaround.
 
+For the current Supabase pooler, set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt` in Railway (backend working directory). A verified public Supabase CA is included in `backend/certs`; it is not a private key. Local operator commands can use its absolute path. Other providers may use the system trust store or a different CA. Never turn off certificate checks to make a connection succeed.
+
 In the development Supabase Auth settings, enable the intended email/password flow, set the site URL and allow the exact frontend callback URLs. Keep email confirmation behavior explicit: the UI shows a confirmation notice when sign-up produces no session. The browser SDK manages the persisted session and refresh; Node verifies each bearer token using Supabase Auth before resolving an application profile.
 
 ## Apply migrations deliberately
