@@ -9,8 +9,8 @@ Use Node.js 22+ and pnpm 11.25.0. Run commands from the repository root in Power
 ```powershell
 pnpm install --frozen-lockfile
 npm --prefix backend ci
-Copy-Item .env.example .env.local
-Copy-Item backend/.env.example backend/.env
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 ```
 
 Edit the two ignored environment files locally. Existing files may already contain your settings; inspect them before copying over them. Do not put credentials in chat, screenshots or commits.
