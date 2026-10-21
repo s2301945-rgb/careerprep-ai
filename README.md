@@ -27,21 +27,20 @@ Future iterations will add authentication, PDF/DOCX resume upload, resume analys
 
 | Role | Responsibility |
 | --- | --- |
-| Product owner | Requirements, priorities, and backlog |
-| Frontend developer | Interface and client-side behavior |
-| Backend developer | API routes and AI integration |
-| Database developer | Schema design and migrations |
-| DevOps / QA | CI, testing, and deployment |
+| Frontend developer | Interface, authentication screens, and API integration |
+| Primary backend developer | API contracts, ownership, validation, persistence, and integration |
+| AI/ML developer and backup backend | Gemini integration, structured output validation, and backend foundation support |
+| Dedicated DevOps engineer | CI/CD, environments, secrets, deployment health, and pipeline evidence |
 
-Team members may hold more than one role. Responsibilities are shared across the project team.
+The confirmed team has four people and exactly one dedicated DevOps engineer. Names and individual availability still need to be recorded. Product-owner duty and code review are shared team responsibilities; assign the product-owner duty before consultation.
 
 ## Branch Strategy
 
 - `main` contains stable, deployable code.
 - Work is completed in `feature/<issue-number>-<description>` branches.
 - Changes enter `main` through pull requests.
-- CI must pass before a pull request is merged.
-- Direct pushes and force pushes to `main` are blocked by a GitHub ruleset.
+- Team policy requires passing CI and at least one teammate review before merge.
+- The active GitHub ruleset requires pull requests and blocks force pushes/deletion. It currently enforces neither approving reviews nor required status checks; a repository admin must configure those gates.
 
 ## Local Setup
 
@@ -94,7 +93,7 @@ GEMINI_MODEL=gemini-2.5-flash
 
 ## Database Migration
 
-Apply the SQL files in `supabase/migrations` to a new Supabase project in filename order. The walking-skeleton migration creates `public.app_config`, inserts the project name, and grants read-only access so `/api/health` can prove a real database read.
+Apply the SQL files in `supabase/migrations` to a new Supabase project in filename order. The walking-skeleton migration creates `public.app_config`, inserts the project name, and grants read-only access so `/health` can prove a real database read.
 
 The larger `careerprep` schema is private by design and is reserved for future application features.
 
@@ -148,11 +147,16 @@ The deployed frontend connects to the Railway backend, and the backend successfu
 - [x] Minimal frontend calling backend endpoints
 - [x] Backend endpoint reading from the database
 - [x] Pull-request CI for install, lint, and build
-- [x] Supabase migrations applied to the hosted project
+- [ ] Full migration inventory verified against the hosted project (previously reported applied; the current live health check verifies public metadata only)
 - [x] Production deployment available at a live URL
-- [x] Branch protection requires pull requests and passing CI
+- [x] Branch protection requires pull requests
+- [ ] Admin-enforced passing CI and one teammate approval
 - [x] GitHub issues created for the Week 1 requirements
-- [ ] Gemini key verified through the backend — integration code is complete, but the live check is currently blocked by API-key authorization
+- [ ] Gemini verified through the deployed backend — the October 22, 2026 check returned `not_configured`; the owner's separately reported successful key test does not verify the current Railway environment
+
+## Sprint scope and evidence
+
+The [official instructions](docs/00-official-course-instructions.md) define Sprint 1 as the deployed walking skeleton and Sprint 2 as owned resume CRUD through the API and UI, including API tests and environment separation. Extraction, analysis, matching and interviews remain later required work. See the [documentation index](docs/README.md) and [sprint delivery record](docs/06-sprint-log.md) for contracts, issues, verified results and outstanding review/deployment gates.
 
 ## Security
 

@@ -2,7 +2,7 @@
 
 Session started October 21, 2026 (Asia/Manila). Purpose: pressure-test the pitch against the course requirements and replace assumptions with explicit project decisions.
 
-The requested `@grill-me` skill was not found in the available skill catalog, installed Codex skill directories, searched Claude skill directories, or project skill files. A focused interview is being conducted directly in chat. No skill was installed and no claim is made that a dedicated skill session was invoked.
+The requested `@grill-me` skill was not found in the available skill catalog, installed local skill directories, or project skill files. A focused interview is being conducted directly in chat. No skill was installed and no claim is made that a dedicated skill session was invoked.
 
 ## 1. Confirmed answers
 

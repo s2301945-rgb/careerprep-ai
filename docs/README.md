@@ -16,6 +16,7 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 | [Database reference](03-database-reference.md) | Actual migration fields, relationships, constraints, access model, and proposed changes for Node.js and Supabase Auth. |
 | [Discovery session and decisions](04-discovery-and-decisions.md) | Confirmed answers, assumptions, unresolved questions, and the ongoing focused interview. |
 | [Backend delivery plan](05-backend-delivery-plan.md) | Proposed schedule through November 17, team handoffs, and a guided starting path for a backend engineer building experience. |
+| [Sprint delivery record](06-sprint-log.md) | Official Sprint 1–2 scope, tracked work, live starting evidence, and review/deployment acceptance gates. |
 
 ## Confirmed direction
 
@@ -47,9 +48,9 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 
 The repository is a walking skeleton. Authentication, private application-table CRUD, uploads, document parsing, structured extraction, resume feedback, job matching, and interviews are still to be implemented. The public `app_config` read and the connectivity prompt do not satisfy the full CRUD and non-trivial AI requirements by themselves.
 
-The root README still says the Gemini live check is blocked by authorization. That conflicts with the owner's newer confirmation that the key was tested successfully. These docs use the newer report and distinguish it from a live check performed during this work.
+The owner's report says a Gemini key was tested successfully. The newer deployed check on October 22 returned `not_configured`; the [sprint delivery record](06-sprint-log.md) distinguishes that observed deployment state from the owner's earlier test.
 
-No production endpoints were invoked, credentials inspected, application code changed, migrations applied, or automated application checks run to prepare these documents. The installed skill locations and project skill directories searched did not contain `grill-me`; the interview is being conducted directly in chat and recorded in [the decision log](04-discovery-and-decisions.md).
+The original design/discovery documents were prepared without invoking production endpoints, inspecting credentials, changing application code, applying migrations, or running automated application checks. Later implementation and verification are tracked separately in the sprint delivery record. The installed skill locations and project skill directories searched did not contain `grill-me`; the interview is recorded in [the decision log](04-discovery-and-decisions.md).
 
 ## Before submission
 
