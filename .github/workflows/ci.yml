@@ -58,6 +58,7 @@ jobs:
           --health-retries 10
     env:
       TEST_DATABASE_URL: postgresql://postgres:integration-only@localhost:5432/careerprep_test
+      TEST_DATABASE_DISPOSABLE: "true"
       NODE_ENV: test
     steps:
       - name: Checkout repository
