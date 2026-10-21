@@ -1,0 +1,33 @@
+{
+  "startedAt": "2026-10-21T17:41:08.663Z",
+  "finishedAt": "2026-10-21T17:41:09.089Z",
+  "projectRef": "pvarmnhsotxuoqtvcwcb",
+  "additionalProbeNumber": 2,
+  "generationRequestsMadeByThisDiagnostic": 1,
+  "readOnlyModelCatalogPreviouslyReturned": {
+    "httpStatus": 200,
+    "configuredModelListed": true,
+    "supportsGenerateContent": true
+  },
+  "probeOutcome": {
+    "state": "error",
+    "code": "AI_PROVIDER_UNAVAILABLE",
+    "retryable": true
+  },
+  "upstream": {
+    "outcome": "http_response",
+    "httpStatus": 404,
+    "providerError": {
+      "providerCode": 404,
+      "providerStatus": "NOT_FOUND",
+      "reason": null,
+      "messageCategory": "RESOURCE_NOT_FOUND"
+    }
+  },
+  "rawProviderMessageIncluded": false,
+  "apiKeyOrHeadersIncluded": false,
+  "requestUrlOrBodyIncluded": false,
+  "configuredModel": "gemini-2.5-flash",
+  "sanitizedInterpretation": "Upstream returned HTTP 404 with NOT_FOUND; the read-only catalog listed this configured model with generateContent support, so the mismatch remains unresolved without another generation request.",
+  "rawProviderTextExposed": false
+}

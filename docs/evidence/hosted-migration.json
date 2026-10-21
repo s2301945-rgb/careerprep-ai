@@ -1,0 +1,70 @@
+{
+  "projectRef": "pvarmnhsotxuoqtvcwcb",
+  "databaseVersion": "PostgreSQL 17.11",
+  "repairedExistingMigration": "20261016160000",
+  "dryRunPendingMigrations": [
+    "20261022160000_sprint_2_resume_api.sql"
+  ],
+  "appliedMigration": "20261022160000_sprint_2_resume_api.sql",
+  "migrationsAfter": [
+    "20261014150915",
+    "20261016160000",
+    "20261022160000"
+  ],
+  "legacyUsersBeforeAndAfter": 0,
+  "legacyResumesBeforeAndAfter": 0,
+  "authUsersBefore": 0,
+  "schema": {
+    "authUserId": "uuid nullable, unique, references auth.users(id) ON DELETE CASCADE",
+    "displayTitle": "varchar(150) NOT NULL with trimmed length 1..150 check",
+    "cleanupOutbox": "careerprep.storage_cleanup_tasks present; user-delete trigger enabled, SECURITY DEFINER, fixed search_path",
+    "legacyPasswordAndRememberTokenColumnsRemoved": true
+  },
+  "runtimeRole": {
+    "name": "careerprep_api",
+    "login": false,
+    "superuser": false,
+    "schemaUsage": true,
+    "schemaCreate": false,
+    "users": "SELECT, INSERT, UPDATE",
+    "resumes": "SELECT, INSERT, UPDATE, DELETE",
+    "cleanupTasks": "SELECT, INSERT, UPDATE",
+    "anonAndAuthenticatedCareerprepSchemaUsage": false,
+    "sequences": "USAGE, SELECT on users_id_seq, resumes_id_seq, storage_cleanup_tasks_id_seq"
+  },
+  "storage": {
+    "bucket": "resumes",
+    "public": false,
+    "fileSizeLimitBytes": 10485760,
+    "allowedMimeTypes": [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ],
+    "storageObjectsRlsEnabled": true,
+    "storageObjectsPolicies": []
+  },
+  "operations": {
+    "migrationHistoryRepair": "supabase migration repair --linked --status applied 20261016160000 --yes",
+    "apply": "supabase db push --linked --skip-vault --yes",
+    "vaultUpdated": false,
+    "runtimeLoginProvisioned": true,
+    "productionDeployPerformed": false
+  },
+  "migrationsBeforeRepair": [
+    "20261014150915"
+  ],
+  "migrationsAfterRepairBeforePush": [
+    "20261014150915",
+    "20261016160000"
+  ],
+  "runtimeLoginVerification": {
+    "name": "careerprep_runtime",
+    "membership": "careerprep_api",
+    "login": true,
+    "superuser": false,
+    "createRole": false,
+    "schemaCreate": false,
+    "remoteConnection": "Verified TLS certificate and hostname using the committed public Supabase CA"
+  },
+  "credentialsIncluded": false
+}

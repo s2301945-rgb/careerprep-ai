@@ -1,5 +1,7 @@
 # CareerPrep AI database reference
 
+This reference records the original migrations and follow-up design baseline. The Sprint 2 follow-up migration and its application evidence are tracked in the [sprint delivery record](06-sprint-log.md). Original Laravel fields below describe migration history, not the current authentication contract once the follow-up migration has been applied.
+
 Snapshot: October 21, 2026. This document describes SQL in the repository; the live database was not inspected. The auth/profile additions below are proposals, not applied migrations.
 
 ## 1. Migration sources and execution order

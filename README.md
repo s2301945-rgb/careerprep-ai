@@ -1,18 +1,22 @@
 # CareerPrep AI
 
-CareerPrep AI is an AI-powered resume analyzer and mock interview platform. The Week 1 deliverable is a thin, deployed walking skeleton that proves the frontend, backend, database, AI provider, CI, and deployment path can work together.
+CareerPrep AI helps college students and fresh graduates organize resumes and prepare for entry-level applications. The Sprint 2 implementation adds a private resume workspace with Supabase sign-in, real PDF/DOCX upload, list/detail, rename, authorized download and deletion through a standalone Node API.
 
-## Week 1 Walking Skeleton
+Resume text extraction, AI analysis, job-description matching and mock interviews remain required later work. The current workspace stores documents without claiming an AI analysis. [Sprint evidence](docs/06-sprint-log.md) distinguishes implementation from reviewed, deployed completion.
 
-- Next.js frontend deployed on Vercel with live service indicators
+## Implemented scope
+
+- Next.js authentication and resume workspace, with loading, empty and error states
 - Standalone Node.js backend deployed separately on Railway
-- `GET /health` backend endpoint
+- Verified Supabase Auth identities mapped to owned application profiles
+- Private PostgreSQL resume CRUD and private Supabase Storage, with durable file-cleanup recovery
+- `GET /health` metadata check and `GET /ready` private-schema readiness
 - Supabase PostgreSQL read through `public.app_config`
-- `POST /ai-test` server-side Gemini connectivity test
-- GitHub Actions install, lint, and build checks on pull requests
+- Authenticated, bounded `POST /ai-test` server-side Gemini connectivity probe
+- GitHub Actions frontend checks, API tests, real PostgreSQL integration tests and prototype build
 - Vercel frontend and Railway backend deployment configuration
 
-Future iterations will add authentication, PDF/DOCX resume upload, resume analysis, job-description matching, interview questions, and answer evaluation.
+Read the [setup and API guide](docs/08-setup-and-api.md) for configuration, migrations, ownership rules and recovery. The files in this PR stack require the hosted environment changes and review listed in the sprint record before the live app reflects this scope.
 
 ## Technology
 
@@ -48,12 +52,12 @@ Requirements: Node.js 22+ and pnpm 11+.
 
 ```bash
 pnpm install
+npm --prefix backend ci
 ```
 
-Copy `.env.example` to `.env.local`, then start both services:
+Copy `.env.example` to `.env.local` and `backend/.env.example` to `backend/.env`, configure a development Supabase project and the private database runtime login, and apply migrations as explained in the [setup guide](docs/08-setup-and-api.md). Start the services in separate terminals:
 
 ```bash
-cp .env.example .env.local
 pnpm dev
 npm --prefix backend start
 ```
@@ -69,14 +73,16 @@ npm --prefix CareerPrepAI ci
 npm --prefix CareerPrepAI run dev
 ```
 
-CI builds both frontends and checks the Railway backend.
+CI builds both frontends and tests the Railway backend against disposable PostgreSQL.
 
 ## Environment Variables
 
-The frontend uses one public variable:
+The frontend uses three public settings:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
 Copy `backend/.env.example` to `backend/.env` for local backend development. In Railway, configure:
@@ -85,17 +91,23 @@ Copy `backend/.env.example` to `backend/.env` for local backend development. In 
 FRONTEND_URL=https://your-vercel-domain.vercel.app
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_RESUME_BUCKET=resumes
+DATABASE_URL=
+DATABASE_SSL_CA=
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 `GEMINI_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
 
+`DATABASE_URL` uses a limited runtime login granted the `careerprep_api` privilege role; the separate `MIGRATION_DATABASE_URL` belongs only in the operator environment. The backend loads its ignored `.env` automatically. The committed templates list all current settings; the [setup guide](docs/08-setup-and-api.md) explains their sources and TLS requirements.
+
 ## Database Migration
 
-Apply the SQL files in `supabase/migrations` to a new Supabase project in filename order. The walking-skeleton migration creates `public.app_config`, inserts the project name, and grants read-only access so `/health` can prove a real database read.
+From the full repository checkout, run `npm --prefix backend run migrate` with a separate `MIGRATION_DATABASE_URL`. For manually migrated existing databases, inspect the current schema/history and use the explicit baseline procedure in the setup guide. Applied-file checksums prevent silent migration changes.
 
-The larger `careerprep` schema is private by design and is reserved for future application features.
+The follow-up migration reconciles Supabase Auth, adds display titles, creates a private resume bucket and durable cleanup tasks, and grants a limited runtime privilege role. Legacy profiles are never linked based solely on matching email. The `careerprep` schema stays private and outside the Supabase Data API; all application operations go through Node.
 
 ## API Endpoints
 
@@ -105,16 +117,22 @@ Returns frontend/backend database connectivity information. When Supabase is con
 
 ### `POST /ai-test`
 
-Makes a minimal Gemini request from the server. The API key is never sent to the browser.
+Requires a verified bearer token and makes a minimal Gemini request from the server, with a timeout and per-identity interval limit. The API key is never sent to the browser.
+
+### Resume API
+
+`/api/v1/me` and `/api/v1/resumes` provide authenticated profile resolution and owned upload/list/detail/rename/delete/download. See the [complete API contract](docs/08-setup-and-api.md#api-reference) for requests, envelopes, pagination, errors and cleanup semantics.
 
 ## Quality Checks
 
 ```bash
 pnpm lint
 pnpm build
+npm --prefix backend run check
+npm --prefix backend test
 ```
 
-GitHub Actions runs frontend install, lint, build, and a backend syntax check on every pull request and on pushes to `main`.
+GitHub Actions runs these checks, PostgreSQL integration tests and the preserved prototype build on every pull request and push to `main`. The integration suite needs an explicitly disposable local database; CI supplies its own. See [pipeline documentation](docs/07-pipeline-and-environments.md) for stages, measured baseline, environment separation and rollback.
 
 ## Deployment
 
@@ -140,6 +158,8 @@ The deployed frontend connects to the Railway backend, and the backend successfu
 4. Set Railway's `FRONTEND_URL` to the final Vercel URL.
 5. Verify all four service indicators and the **Test AI connection** button.
 
+Complete the [hosting configuration and two-user rehearsal](docs/07-pipeline-and-environments.md) before calling Sprint 2 deployed. Vercel previews need an intentionally separate API/database environment and exact allowed origins.
+
 ## Week 1 Evidence Checklist
 
 - [x] Repository, README, `.gitignore`, `.env.example`, and branch strategy
@@ -147,7 +167,7 @@ The deployed frontend connects to the Railway backend, and the backend successfu
 - [x] Minimal frontend calling backend endpoints
 - [x] Backend endpoint reading from the database
 - [x] Pull-request CI for install, lint, and build
-- [ ] Full migration inventory verified against the hosted project (previously reported applied; the current live health check verifies public metadata only)
+- [x] All three migrations verified against the hosted Supabase project; limited runtime login and private bucket checked
 - [x] Production deployment available at a live URL
 - [x] Branch protection requires pull requests
 - [ ] Admin-enforced passing CI and one teammate approval

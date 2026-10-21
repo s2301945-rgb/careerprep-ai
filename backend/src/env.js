@@ -19,7 +19,7 @@ export function getConfig(env = process.env) {
     migrationDatabaseUrl: env.MIGRATION_DATABASE_URL,
     migrationDatabaseSslCa: env.MIGRATION_DATABASE_SSL_CA ?? env.DATABASE_SSL_CA,
     geminiApiKey: env.GEMINI_API_KEY,
-    geminiModel: env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    geminiModel: env.GEMINI_MODEL ?? "gemini-3.5-flash-lite",
     environment: env.NODE_ENV ?? "development",
   };
 }

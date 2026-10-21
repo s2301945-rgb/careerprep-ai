@@ -17,6 +17,9 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 | [Discovery session and decisions](04-discovery-and-decisions.md) | Confirmed answers, assumptions, unresolved questions, and the ongoing focused interview. |
 | [Backend delivery plan](05-backend-delivery-plan.md) | Proposed schedule through November 17, team handoffs, and a guided starting path for a backend engineer building experience. |
 | [Sprint delivery record](06-sprint-log.md) | Official Sprint 1–2 scope, tracked work, live starting evidence, and review/deployment acceptance gates. |
+| [Pipeline and environments](07-pipeline-and-environments.md) | Automated checks, hosting settings, environment separation, deploy/rollback runbook and measured pipeline baseline. |
+| [Workspace setup and API](08-setup-and-api.md) | Step-by-step configuration, operator migration/runtime-role setup, resume endpoints, validation and cleanup recovery. |
+| [Cloud setup from VS Code](09-cloud-setup.md) | Current service connections, replacement-project steps, CLI links and remaining deployment/account gates. |
 
 ## Confirmed direction
 
@@ -46,7 +49,9 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 
 ## Current readiness
 
-The repository is a walking skeleton. Authentication, private application-table CRUD, uploads, document parsing, structured extraction, resume feedback, job matching, and interviews are still to be implemented. The public `app_config` read and the connectivity prompt do not satisfy the full CRUD and non-trivial AI requirements by themselves.
+The Sprint 2 branches implement Supabase authentication and owned resume upload, list/detail, rename, private download and deletion through the Node API and Next.js UI. All three migrations are applied to the hosted Supabase project. The [sprint delivery record](06-sprint-log.md) records the PRs, test evidence and remaining review/deployment gates; the production walking skeleton does not yet contain these unmerged changes.
+
+Document text extraction, structured analysis, resume feedback, job matching and interviews remain later work. PDF/DOCX container validation does not perform text extraction. The public `app_config` read and connectivity prompt do not satisfy the non-trivial AI requirement by themselves.
 
 The owner's report says a Gemini key was tested successfully. The newer deployed check on October 22 returned `not_configured`; the [sprint delivery record](06-sprint-log.md) distinguishes that observed deployment state from the owner's earlier test.
 

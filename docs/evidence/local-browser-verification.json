@@ -1,0 +1,96 @@
+{
+  "run_at_utc": "2026-10-21T17:41:43.840Z",
+  "environment": {
+    "database": "Local PostgreSQL 18.6 over TCP on loopback; application CRUD used the restricted runtime login.",
+    "api": "Real Node backend process using the browser test database.",
+    "frontend": "Real Next.js app from the careerprep-frontend worktree.",
+    "auth_storage": "Local HTTP stand-in for Supabase Auth and Storage; no hosted Supabase credentials or data.",
+    "fixtures": "Two synthetic .example.test users and a private local resumes bucket."
+  },
+  "runtime_role": {
+    "role_name": "careerprep_browser_runtime",
+    "is_superuser": false
+  },
+  "tests": [
+    {
+      "title": "desktop CRUD, two-user isolation, cross-tab switch, and file cleanup use real PostgreSQL",
+      "status": "passed",
+      "expected_status": "passed",
+      "error": null
+    },
+    {
+      "title": "database readiness is marked Unavailable when the /ready endpoint returns an error",
+      "status": "passed",
+      "expected_status": "passed",
+      "error": null
+    }
+  ],
+  "assertions": [
+    {
+      "name": "User A authenticated through the local Auth REST stand-in and reached the real API.",
+      "status": "passed"
+    },
+    {
+      "name": "Readable PDF upload persisted in PostgreSQL with a matching local Storage entry.",
+      "status": "passed",
+      "uploaded_bytes": 644,
+      "format": "PDF"
+    },
+    {
+      "name": "Title edit was committed to PostgreSQL.",
+      "status": "passed"
+    },
+    {
+      "name": "Reload restored the renamed PDF; original PDF and DOCX downloads matched their uploaded readable fixtures byte-for-byte.",
+      "status": "passed",
+      "formats": [
+        "PDF",
+        "DOCX"
+      ]
+    },
+    {
+      "name": "A second tab signed out A and signed in as B without reloading the first tab; A data disappeared and B received 404 for both A resumes.",
+      "status": "passed"
+    },
+    {
+      "name": "Switching the shared session back to A restored A’s persisted resume list.",
+      "status": "passed"
+    },
+    {
+      "name": "Delete removed both PostgreSQL resume rows, storage metadata rows, local objects, and completed both cleanup tasks.",
+      "status": "passed",
+      "formats": [
+        "PDF",
+        "DOCX"
+      ]
+    },
+    {
+      "name": "The UI displayed Unavailable for a failing /ready probe; the real runtime DB /ready endpoint returned 200.",
+      "status": "passed",
+      "simulated_ready_status": 503,
+      "real_ready_status": 200
+    }
+  ],
+  "screenshots": [
+    "desktop-workspace.png",
+    "mobile-workspace.png"
+  ],
+  "browser_console_errors": [],
+  "expected_browser_console_errors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ],
+  "browser_page_errors": [],
+  "failed_requests": [],
+  "database_observation": {
+    "server_version": "18.6",
+    "resume_rows": "0",
+    "stored_objects": "0",
+    "cumulative_completed_cleanup_tasks": "8",
+    "cleanup_task_count_note": "Cumulative count across repeated local browser runs; the current run independently asserted exactly two completed cleanup tasks for its two deleted files."
+  },
+  "browser_version": "156.0.8078.4",
+  "finished_at_utc": "2026-10-21T17:41:48.981Z"
+}

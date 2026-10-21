@@ -15,6 +15,7 @@ node_modules/
 /.next/
 /CareerPrepAI/dist/
 /backend/coverage/
+*.tsbuildinfo
 /public/build/
 /public/hot/
 /public/storage/
@@ -39,3 +40,4 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/settings.local.json
+.vercel/
