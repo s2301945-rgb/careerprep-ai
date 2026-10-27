@@ -8,7 +8,7 @@ CareerPrep AI is an AI-powered resume analyzer and mock interview platform. The 
 - Standalone Node.js backend deployed separately on Railway
 - `GET /health` backend endpoint
 - Supabase PostgreSQL read through `public.app_config`
-- `POST /ai-test` server-side Gemini connectivity test
+- `POST /ai-test` server-side Groq connectivity test
 - GitHub Actions install, lint, and build checks on pull requests
 - Vercel frontend and Railway backend deployment configuration
 
@@ -19,7 +19,7 @@ Future iterations will add authentication, PDF/DOCX resume upload, resume analys
 - Frontend: Next.js, React, TypeScript on Vercel
 - Backend: Node.js HTTP API on Railway
 - Database: Supabase PostgreSQL
-- AI provider: Google Gemini
+- AI provider: Groq
 - CI: GitHub Actions
 - Deployment: Vercel
 
@@ -86,11 +86,11 @@ Copy `backend/.env.example` to `backend/.env` for local backend development. In 
 FRONTEND_URL=https://your-vercel-domain.vercel.app
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
-`GEMINI_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
+`GROQ_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
 
 ## Database Migration
 
@@ -106,7 +106,7 @@ Returns frontend/backend database connectivity information. When Supabase is con
 
 ### `POST /ai-test`
 
-Makes a minimal Gemini request from the server. The API key is never sent to the browser.
+Makes a minimal Groq request from the server. The API key is never sent to the browser.
 
 ## Quality Checks
 
@@ -152,7 +152,7 @@ The deployed frontend connects to the Railway backend, and the backend successfu
 - [x] Production deployment available at a live URL
 - [x] Branch protection requires pull requests and passing CI
 - [x] GitHub issues created for the Week 1 requirements
-- [ ] Gemini key verified through the backend — integration code is complete, but the live check is currently blocked by API-key authorization
+- [ ] Groq key verified through the backend — add `GROQ_API_KEY` in Railway and verify the live check
 
 ## Security
 
