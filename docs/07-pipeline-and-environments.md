@@ -14,7 +14,7 @@ The [course instructions](00-official-course-instructions.md) require automated 
 
 The PostgreSQL service uses throwaway CI-only credentials. Its Supabase Auth/Storage fixture is test infrastructure; it never represents a real hosted login or Storage verification. Integration tests must use a fresh disposable database, never production.
 
-`Deployment Smoke` runs after a successful production deployment event or an explicit manual run. It uses the configured production URLs, checks the frontend, a real metadata database read, private-schema readiness at `/ready` and the unauthenticated API boundary. It never calls Gemini, logs in or accesses private documents. Because services finish at different times, it retries a bounded number of times. This smoke check cannot replace the two-user authenticated rehearsal.
+`Deployment Smoke` runs after a successful production deployment event or an explicit manual run. It uses the configured production URLs, checks the frontend, a real metadata database read, private-schema readiness at `/ready` and the unauthenticated API boundary. It never calls the AI provider, logs in or accesses private documents. Because services finish at different times, it retries a bounded number of times. This smoke check cannot replace the two-user authenticated rehearsal.
 
 ```mermaid
 flowchart LR
@@ -48,7 +48,7 @@ Do not enable automatic PR merging. Each dependent PR must receive a teammate re
 | API | `localhost:8080` | Separate Railway service/environment | Existing Railway production service |
 | Database/Auth/Storage | Local test stack or a development Supabase project | Dedicated non-production Supabase project/branch | Production Supabase project |
 | `FRONTEND_URL` | Exact localhost origin | Exact approved preview/staging origins | Exact production frontend origin |
-| Gemini | Disabled in routine tests | Separate budget-limited server key | Production server key |
+| Groq | Disabled in routine tests | Separate rate-limited server key | Production server key |
 
 Vercel Preview records already exist. A separate hosted preview API/database and their credentials were not verified during initial inspection. Do not point arbitrary preview builds at production private data. Prefer a stable staging domain added to the exact CORS allowlist; avoid wildcard access to all Vercel subdomains. See [Vercel GitHub integration](https://vercel.com/docs/git/vercel-for-github) and [Supabase connection guidance](https://supabase.com/docs/guides/database/connecting-to-postgres).
 
@@ -58,7 +58,7 @@ The browser receives only `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL` and 
 
 Before release, the DevOps engineer should record the last good frontend and backend deployment IDs/commit, database backup/recovery capability and exact target environment. Inspect the new migration against current schema/data, apply once with a separate migration identity, and provision the limited runtime login. Never seed real production accounts or private resumes as part of startup.
 
-After a reviewed merge and successful checks, watch both hosting deployments. Run `Deployment Smoke` and the [sprint acceptance checklist](06-sprint-log.md). Verify sign-up/confirmation and token refresh with real Supabase Auth, both supported document formats, reload persistence, cross-user isolation and file deletion. Record URLs, commit, CI run and outcomes without tokens, source documents or personal data. Check the authenticated Gemini connectivity probe once with the actual server key to finish the Sprint 1 provider gate; routine CI must not use a paid model.
+After a reviewed merge and successful checks, watch both hosting deployments. Run `Deployment Smoke` and the [sprint acceptance checklist](06-sprint-log.md). Verify sign-up/confirmation and token refresh with real Supabase Auth, both supported document formats, reload persistence, cross-user isolation and file deletion. Record URLs, commit, CI run and outcomes without tokens, source documents or personal data. Check the authenticated Groq connectivity probe once with the actual server key to finish the Sprint 1 provider gate; routine CI must not call a live model.
 
 If release fails, use the Vercel project's deployment history to promote/redeploy the last good frontend and the Railway service's deployment history to redeploy the last good backend. Check both health and the previous working user journey after rollback. Record start, detection and recovery times. This follow-up migration is additive for resume metadata/cleanup but removes unused legacy password columns; do not attempt an unreviewed SQL reversal or restore a database without assessing writes since backup. The old walking skeleton does not use those columns. A database rollback needs a separate reviewed recovery plan.
 
