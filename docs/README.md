@@ -31,7 +31,7 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 - Deadline: November 17, 2026, treated as the final development/demonstration deadline. Exact submission time and any separate preliminary-pitch deadline are not supplied.
 - Team: four people, covering frontend; DevOps; AI/ML plus backup backend; and primary backend. The AI/ML teammate can help with backend foundations and own AI integration. Individual availability and detailed deployment responsibilities remain open.
 - Personal risk: the backend engineer reports low confidence across backend tasks. The proposed mitigation is guided implementation in small working slices, with the backup backend teammate helping on authentication, data access, and initial CRUD.
-- AI: Google Gemini, cloud hosted. The project owner reports the key has already been tested successfully; AI key management is outside their responsibility as backend engineer. The responsible teammate and model-specific structured-output verification remain open.
+- AI: The original plan selected Google Gemini. The current backend connectivity probe has been changed to Groq after the deployed Gemini project rejected free-tier requests. Model-specific structured-output verification for the future analysis workflow remains open.
 - Documentation format requested now: Markdown in this directory. The earlier pitch submission format was described as a single PDF or Word document; the official endterm instructions list final project deliverables separately.
 
 ## Repository evidence
@@ -39,8 +39,8 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 | Source | What it establishes |
 | --- | --- |
 | [Root README](../README.md) | Product intent, walking skeleton scope, setup, deployment addresses, and team role categories. Some claims describe external state and were not independently checked. |
-| [Frontend manifest](../package.json) and [home page](../src/app/page.tsx) | Next.js/React frontend with backend health and Gemini connectivity controls. |
-| [Backend server](../backend/src/server.js) and [manifest](../backend/package.json) | Standalone Node.js native HTTP server, Supabase metadata read, and Gemini REST connectivity request. |
+| [Frontend manifest](../package.json) and [home page](../src/app/page.tsx) | Next.js/React frontend with backend health and AI connectivity controls. |
+| [Backend server](../backend/src/server.js) and [manifest](../backend/package.json) | Standalone Node.js native HTTP server, Supabase metadata read, and Groq REST connectivity request. |
 | [Initial migration](../supabase/migrations/20261014150915_initial_schema.sql) | Eight private application tables, ownership constraints, score checks, indexes, and timestamp triggers; its comments and identity columns assume Laravel. |
 | [Walking skeleton migration](../supabase/migrations/20261016160000_add_walking_skeleton_config.sql) | Public read-only project metadata and a SELECT policy. |
 | [Frontend environment template](../.env.example) and [backend template](../backend/.env.example) | Current environment variable names, without secret values. |
@@ -53,7 +53,7 @@ The Sprint 2 branches implement Supabase authentication and owned resume upload,
 
 Document text extraction, structured analysis, resume feedback, job matching and interviews remain later work. PDF/DOCX container validation does not perform text extraction. The public `app_config` read and connectivity prompt do not satisfy the non-trivial AI requirement by themselves.
 
-The owner's report says a Gemini key was tested successfully. The newer deployed check on October 22 returned `not_configured`; the [sprint delivery record](06-sprint-log.md) distinguishes that observed deployment state from the owner's earlier test.
+The owner's earlier Gemini key test and the October 22 `not_configured` deployment check remain historical evidence in the [sprint delivery record](06-sprint-log.md). A later deployed Gemini request returned a provider permission error, which prompted the Groq probe migration. A successful Groq request on Railway still requires a Groq API key and deployment verification.
 
 The original design/discovery documents were prepared without invoking production endpoints, inspecting credentials, changing application code, applying migrations, or running automated application checks. Later implementation and verification are tracked separately in the sprint delivery record. The installed skill locations and project skill directories searched did not contain `grill-me`; the interview is recorded in [the decision log](04-discovery-and-decisions.md).
 

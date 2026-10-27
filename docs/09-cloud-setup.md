@@ -49,7 +49,7 @@ If it already exists, select it rather than creating another:
 railway link
 ```
 
-Choose the project, `production` environment and `careerprep-api` service. The CLI link connects this VS Code folder. In the Railway service's **Variables** tab, add the backend settings listed in [the setup guide](08-setup-and-api.md). Copy values privately from `backend/.env`; do not paste the whole file into a terminal command or commit it. Set `NODE_ENV=production`, use the limited runtime `DATABASE_URL`, and set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt`. Add exact approved frontend origins to `FRONTEND_URL`; include `https://careerprep-ai-seven.vercel.app` and `https://careerprep-ai-xiee-t.vercel.app`. Keep the service key and Gemini key on Railway only. Do not add the operator/migration credential.
+Choose the project, `production` environment and `careerprep-api` service. The CLI link connects this VS Code folder. In the Railway service's **Variables** tab, add the backend settings listed in [the setup guide](08-setup-and-api.md). Copy values privately from `backend/.env`; do not paste the whole file into a terminal command or commit it. Set `NODE_ENV=production`, use the limited runtime `DATABASE_URL`, and set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt`. Add exact approved frontend origins to `FRONTEND_URL`; include `https://careerprep-ai-seven.vercel.app` and `https://careerprep-ai-xiee-t.vercel.app`. Keep the service key and Groq key on Railway only. Do not add the operator/migration credential.
 
 Use the checked commit as the deployment source. A source-only archive excludes ignored credentials and local dependencies:
 

@@ -22,7 +22,7 @@ Edit the two ignored environment files locally. Existing files may already conta
 | `backend/.env` | `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_RESUME_BUCKET=resumes` | Server-only Storage credential; never a public frontend variable |
 | `backend/.env` | `DATABASE_URL`, optional `DATABASE_SSL_CA` | A limited PostgreSQL runtime login, with verified TLS for remote connections |
 | Operator environment | `MIGRATION_DATABASE_URL`, optional `MIGRATION_DATABASE_SSL_CA` | Separate schema-owner/migration credential; remove it from long-running application environments |
-| `backend/.env` | Optional `GEMINI_API_KEY`, `GEMINI_MODEL` | Server-side connectivity probe only; not needed for resume CRUD or routine tests |
+| `backend/.env` | Optional `GROQ_API_KEY`, `GROQ_MODEL` | Server-side connectivity probe only; not needed for resume CRUD or routine tests |
 
 `backend/.env` loads automatically regardless of the shell's working directory. Process environment values take precedence. Supabase's connection panel provides direct/session-pooler URLs; use a connection reachable from Railway and keep the pool bounded. Remote TLS verifies the certificate and hostname. `sslmode=disable` is accepted only for loopback outside production; it is not a hosted workaround.
 
@@ -89,7 +89,7 @@ Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authoriz
 | `GET /` | None | 200, process liveness |
 | `GET /health` | None | 200, public database metadata state; `not_configured` is not readiness |
 | `GET /ready` | None | 200 only when the private application database check succeeds; otherwise 503 |
-| `POST /ai-test` | Verified token, at most once per identity per minute per process | 200, Gemini connectivity status; no application analysis |
+| `POST /ai-test` | Verified token, at most once per identity per minute per process | 200, Groq connectivity status; no application analysis |
 | `GET /api/v1/me` | Verified token | 200, `{ "user": { "id", "email", "name" } }`; safely resolves/creates the profile |
 | `POST /api/v1/resumes` | Multipart `file` and optional `display_title` | 201, `{ "resume": ... }` after storing the real private document and metadata |
 | `GET /api/v1/resumes` | Optional `limit` 1–100 (default 20) and opaque `cursor` | 200, `{ "resumes": [...], "next_cursor": "..." or null }` |
