@@ -7,7 +7,7 @@ import { getConfig } from "./env.js";
 import { createSupabaseAuth, requireIdentity } from "./auth.js";
 import { createPool, createRepository } from "./database.js";
 import { createSupabaseStorage } from "./storage.js";
-import { createGeminiProbe, createProbeRateLimiter } from "./ai.js";
+import { createGroqProbe, createProbeRateLimiter } from "./ai.js";
 import { startCleanupWorker, finishResumeDeletion, cleanupFailureError } from "./cleanup.js";
 import { safeOriginalFilename, validateResumeFile } from "./documents.js";
 import { parseResumeMultipart } from "./multipart.js";
@@ -242,9 +242,9 @@ export function createApp({
     supabaseAnonKey: config.supabaseAnonKey,
     fetchImpl,
   });
-  const geminiProbe = aiProbe ?? createGeminiProbe({
-    apiKey: config.geminiApiKey,
-    model: config.geminiModel,
+  const groqProbe = aiProbe ?? createGroqProbe({
+    apiKey: config.groqApiKey,
+    model: config.groqModel,
     fetchImpl,
   });
 
@@ -284,7 +284,7 @@ export function createApp({
       if (request.method === "POST" && url.pathname === "/ai-test") {
         const identity = await requireIdentity(request, authVerifier);
         rateLimiter.check(identity.id);
-        const result = await geminiProbe.check();
+        const result = await groqProbe.check();
         sendJson(request, response, 200, result, corsHeaders, requestId);
         return;
       }
@@ -462,7 +462,7 @@ export function startBackend({ config = getConfig(), logger = console } = {}) {
     supabaseUrl: config.supabaseUrl,
     supabaseAnonKey: config.supabaseAnonKey,
   });
-  const aiProbe = createGeminiProbe({ apiKey: config.geminiApiKey, model: config.geminiModel });
+  const aiProbe = createGroqProbe({ apiKey: config.groqApiKey, model: config.groqModel });
   const app = createApp({ config, repository, auth, storage, aiProbe, logger });
   const stopCleanupWorker = repository ? startCleanupWorker({ repository, storage, logger }) : () => {};
   app.requestTimeout = 30_000;

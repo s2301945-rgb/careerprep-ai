@@ -35,62 +35,53 @@ async function readResponseJson(response) {
   }
 }
 
-export function createGeminiProbe({ apiKey, model, fetchImpl = fetch }) {
+export function createGroqProbe({ apiKey, model, fetchImpl = fetch }) {
   return {
     async check() {
       if (!apiKey) {
-        return { ai: "not_configured", message: "Gemini is not configured for this environment." };
+        return { ai: "not_configured", message: "Groq is not configured for this environment." };
       }
-      const safeModel = model?.replace(/^models\//, "");
-      if (!safeModel || !/^[A-Za-z0-9._-]{1,120}$/.test(safeModel)) {
+      if (!model || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$/.test(model)) {
         throw new ApiError(503, "AI_NOT_CONFIGURED", "The AI model configuration is invalid.");
       }
 
       let response;
       try {
         response = await fetchImpl(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(safeModel)}:generateContent`,
+          "https://api.groq.com/openai/v1/chat/completions",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-goog-api-key": apiKey,
+              Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: "Reply with exactly: AI connection successful" }] }],
-              generationConfig: {
-                maxOutputTokens: 64,
-                temperature: 0,
-                ...( /^gemini-2\.5-(?:flash|flash-lite)(?:-|$)/i.test(safeModel)
-                  ? { thinkingConfig: { thinkingBudget: 0 } }
-                  : {} ),
-              },
+              model,
+              messages: [{ role: "user", content: "Reply with exactly: AI connection successful" }],
+              max_completion_tokens: 256,
+              reasoning_effort: "low",
+              temperature: 0,
             }),
             signal: AbortSignal.timeout(10_000),
           },
         );
       } catch {
-        throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Gemini could not be reached.", true);
+        throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Groq could not be reached.", true);
       }
 
       if (!response.ok) {
         await response.body?.cancel();
-        throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Gemini could not complete the connectivity check.", true);
+        throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Groq could not complete the connectivity check.", true);
       }
 
       const payload = await readResponseJson(response);
-      const candidate = Array.isArray(payload?.candidates) ? payload.candidates[0] : null;
-      const text = Array.isArray(candidate?.content?.parts)
-        ? candidate.content.parts
-          .map((part) => typeof part?.text === "string" ? part.text : "")
-          .join("")
-          .trim()
-        : "";
-      if (!text || text.length > 5000 || ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT"].includes(candidate?.finishReason)) {
-        throw new ApiError(502, "AI_RESPONSE_INVALID", "Gemini returned no usable text.", true);
+      const content = payload?.choices?.[0]?.message?.content;
+      const text = typeof content === "string" ? content.trim() : "";
+      if (!text || text.length > 5000) {
+        throw new ApiError(502, "AI_RESPONSE_INVALID", "Groq returned no usable text.", true);
       }
 
-      return { ai: "connected", message: "Gemini responded successfully from the backend." };
+      return { ai: "connected", message: "Groq responded successfully from the backend." };
     },
   };
 }
