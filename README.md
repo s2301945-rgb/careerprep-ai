@@ -12,7 +12,7 @@ Resume text extraction, AI analysis, job-description matching and mock interview
 - Private PostgreSQL resume CRUD and private Supabase Storage, with durable file-cleanup recovery
 - `GET /health` metadata check and `GET /ready` private-schema readiness
 - Supabase PostgreSQL read through `public.app_config`
-- Authenticated, bounded `POST /ai-test` server-side Gemini connectivity probe
+- Authenticated, bounded `POST /ai-test` server-side Groq connectivity probe
 - GitHub Actions frontend checks, API tests, real PostgreSQL integration tests and prototype build
 - Vercel frontend and Railway backend deployment configuration
 
@@ -23,7 +23,7 @@ Read the [setup and API guide](docs/08-setup-and-api.md) for configuration, migr
 - Frontend: Next.js, React, TypeScript on Vercel
 - Backend: Node.js HTTP API on Railway
 - Database: Supabase PostgreSQL
-- AI provider: Google Gemini
+- AI provider: Groq
 - CI: GitHub Actions
 - Deployment: Vercel
 
@@ -33,7 +33,7 @@ Read the [setup and API guide](docs/08-setup-and-api.md) for configuration, migr
 | --- | --- |
 | Frontend developer | Interface, authentication screens, and API integration |
 | Primary backend developer | API contracts, ownership, validation, persistence, and integration |
-| AI/ML developer and backup backend | Gemini integration, structured output validation, and backend foundation support |
+| AI/ML developer and backup backend | Groq integration, structured output validation, and backend foundation support |
 | Dedicated DevOps engineer | CI/CD, environments, secrets, deployment health, and pipeline evidence |
 
 The confirmed team has four people and exactly one dedicated DevOps engineer. Names and individual availability still need to be recorded. Product-owner duty and code review are shared team responsibilities; assign the product-owner duty before consultation.
@@ -95,11 +95,11 @@ SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_RESUME_BUCKET=resumes
 DATABASE_URL=
 DATABASE_SSL_CA=
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.5-flash-lite
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
-`GEMINI_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
+`GROQ_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
 
 `DATABASE_URL` uses a limited runtime login granted the `careerprep_api` privilege role; the separate `MIGRATION_DATABASE_URL` belongs only in the operator environment. The backend loads its ignored `.env` automatically. The committed templates list all current settings; the [setup guide](docs/08-setup-and-api.md) explains their sources and TLS requirements.
 
@@ -117,7 +117,7 @@ Returns frontend/backend database connectivity information. When Supabase is con
 
 ### `POST /ai-test`
 
-Requires a verified bearer token and makes a minimal Gemini request from the server, with a timeout and per-identity interval limit. The API key is never sent to the browser.
+Requires a verified bearer token and makes a minimal Groq request from the server, with a timeout and per-identity interval limit. The API key is never sent to the browser.
 
 ### Resume API
 
@@ -172,7 +172,7 @@ Complete the [hosting configuration and two-user rehearsal](docs/07-pipeline-and
 - [x] Branch protection requires pull requests
 - [ ] Admin-enforced passing CI and one teammate approval
 - [x] GitHub issues created for the Week 1 requirements
-- [ ] Gemini verified through the deployed backend — the October 22, 2026 check returned `not_configured`; the owner's separately reported successful key test does not verify the current Railway environment
+- [ ] Groq verified through the deployed backend — add `GROQ_API_KEY` in Railway and run the authenticated check after deployment
 
 ## Sprint scope and evidence
 
