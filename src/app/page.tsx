@@ -19,7 +19,7 @@ export default function Home() {
     message: apiUrl ? undefined : "Add NEXT_PUBLIC_API_URL in Vercel.",
   });
   const [aiStatus, setAiStatus] = useState<ServiceState>("not_configured");
-  const [aiMessage, setAiMessage] = useState("Run a small server-side request to verify the Gemini API key.");
+  const [aiMessage, setAiMessage] = useState("Run a small server-side request to verify the Groq API key.");
 
   useEffect(() => {
     if (!apiUrl) return;
@@ -28,7 +28,7 @@ export default function Home() {
 
   async function testAi() {
     setAiStatus("checking");
-    setAiMessage("Contacting Gemini from the backend...");
+    setAiMessage("Contacting Groq from the backend...");
     try {
       if (!apiUrl) throw new Error("Backend URL is not configured");
       const response = await fetch(`${apiUrl}/ai-test`, { method: "POST" });
@@ -54,7 +54,7 @@ export default function Home() {
           <article><h3>Frontend</h3><StatusBadge status="connected" /><p>The Next.js interface is running.</p></article>
           <article><h3>Backend</h3><StatusBadge status={health.database === "checking" ? "checking" : health.backend === "connected" ? "connected" : "error"} /><p>The API is deployed separately on Railway.</p></article>
           <article><h3>Supabase</h3><StatusBadge status={health.database} /><p>{health.message ?? "Reading project data from PostgreSQL."}</p></article>
-          <article><h3>Gemini AI</h3><StatusBadge status={aiStatus} /><p>{aiMessage}</p><button disabled={aiStatus === "checking"} onClick={testAi}>{aiStatus === "checking" ? "Testing..." : "Test AI connection"}</button></article>
+          <article><h3>Groq AI</h3><StatusBadge status={aiStatus} /><p>{aiMessage}</p><button disabled={aiStatus === "checking"} onClick={testAi}>{aiStatus === "checking" ? "Testing..." : "Test AI connection"}</button></article>
         </div>
       </section>
       <footer>Resume analysis and mock interviews will be delivered in future iterations.</footer>

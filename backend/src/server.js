@@ -1,4 +1,5 @@
 import http from "node:http";
+import { probeGroq } from "./groq.js";
 
 const port = Number(process.env.PORT ?? 8080);
 const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3000")
@@ -72,74 +73,28 @@ async function checkDatabase(request, response) {
 }
 
 async function checkAi(request, response) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const apiKey = process.env.GROQ_API_KEY;
+  const model = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
 
   if (!apiKey) {
     return sendJson(request, response, 200, {
       ai: "not_configured",
-      message: "Add GEMINI_API_KEY in Railway to complete the AI connectivity check.",
+      message: "Add GROQ_API_KEY in Railway to complete the AI connectivity check.",
     });
   }
 
   try {
-    const modelsResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models?pageSize=100",
-      { headers: { "x-goog-api-key": apiKey } },
-    );
-
-    if (!modelsResponse.ok) {
-      throw new Error(`Gemini model discovery returned ${modelsResponse.status}`);
-    }
-
-    const modelCatalog = await modelsResponse.json();
-    const availableModels = (modelCatalog.models ?? []).filter((candidate) =>
-      candidate.supportedGenerationMethods?.includes("generateContent"),
-    );
-    const requestedName = `models/${model}`;
-    const modelNames = [
-      ...availableModels.filter((candidate) => candidate.name === requestedName),
-      ...availableModels.filter((candidate) => candidate.name?.includes("flash")),
-      ...availableModels,
-    ]
-      .map((candidate) => candidate.name)
-      .filter((name, index, names) => name && names.indexOf(name) === index);
-
-    if (modelNames.length === 0) {
-      throw new Error("No Gemini model supporting generateContent is available for this API key");
-    }
-
-    let aiResponse;
-    for (const modelName of modelNames) {
-      aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Reply with exactly: AI connection successful" }] }],
-            generationConfig: { maxOutputTokens: 20, temperature: 0 },
-          }),
-        },
-      );
-
-      if (aiResponse.ok || aiResponse.status !== 404) break;
-    }
-
-    if (!aiResponse?.ok) throw new Error(`Gemini returned ${aiResponse?.status ?? "no response"}`);
+    await probeGroq({ apiKey, model });
 
     return sendJson(request, response, 200, {
       ai: "connected",
-      message: "Gemini responded successfully from the Railway backend.",
+      message: "Groq responded successfully from the Railway backend.",
     });
   } catch (error) {
     console.error("AI connectivity check failed:", error);
     return sendJson(request, response, 503, {
       ai: "error",
-      message: "Gemini is configured, but the request failed.",
+      message: "Groq is configured, but the request failed.",
     });
   }
 }
