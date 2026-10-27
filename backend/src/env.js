@@ -18,8 +18,8 @@ export function getConfig(env = process.env) {
     databaseSslCa: env.DATABASE_SSL_CA,
     migrationDatabaseUrl: env.MIGRATION_DATABASE_URL,
     migrationDatabaseSslCa: env.MIGRATION_DATABASE_SSL_CA ?? env.DATABASE_SSL_CA,
-    geminiApiKey: env.GEMINI_API_KEY,
-    geminiModel: env.GEMINI_MODEL ?? "gemini-2.5-flash",
+    groqApiKey: env.GROQ_API_KEY,
+    groqModel: env.GROQ_MODEL ?? "openai/gpt-oss-20b",
     environment: env.NODE_ENV ?? "development",
   };
 }

@@ -2,6 +2,8 @@
 
 Updated October 21, 2026. Companion documents: [pitch](01-project-pitch.md), [database](03-database-reference.md), [decisions](04-discovery-and-decisions.md).
 
+This is the original design baseline. The implementation inventory below describes the repository before Sprint 2. Track later implementation and verification in the [sprint delivery record](06-sprint-log.md); a PR implementation does not establish hosted deployment or complete later AI workflows.
+
 Unless described as implemented or confirmed, this document is a proposed implementation contract. Numeric product limits, rubrics, and API routes beyond the three current endpoints require implementation and team review.
 
 ## 1. Product scope and acceptance

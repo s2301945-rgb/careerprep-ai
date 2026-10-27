@@ -28,7 +28,7 @@ This work goes beyond a generic chat interface: the output becomes validated app
 
 The current backend already calls Gemini through server-side REST requests using `fetch`. Structured extraction, runtime validation, and the persistence workflow still need implementation. Google's API supports JSON Schema structured outputs; backend validation remains necessary because a valid JSON shape does not establish factual correctness. See [Google's structured-output documentation](https://ai.google.dev/gemini-api/docs/structured-output).
 
-**Model plan:** We will keep the model configurable with `GEMINI_MODEL`. Our existing template names `gemini-2.5-flash`; our AI/ML engineer will select and verify an accessible model that supports the required output schema before we accept the feature. A successful connectivity check alone does not establish that the structured workflow is complete.
+**Model plan:** We keep the model configurable with `GEMINI_MODEL`. The current connectivity template uses `gemini-3.5-flash-lite`, verified through the backend probe on October 22, 2026. The original `gemini-2.5-flash` returned 404 for this credential despite appearing in the model catalog; Google limits 2.5 access to projects with past usage and [recommends newer models](https://ai.google.dev/gemini-api/docs/deprecations). Our AI/ML engineer still needs to verify the required structured output schema before we accept the AI feature. A successful connectivity check alone does not establish that the structured workflow is complete.
 
 ## 3. Database schema sketch
 
