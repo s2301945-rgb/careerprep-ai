@@ -1,0 +1,20 @@
+project_id = "careerprep-ai"
+
+# Only these Auth properties are managed here. Review `supabase config diff`
+# before pushing; unrelated provider, email, MFA and database settings are omitted.
+[auth]
+site_url = "https://careerprep-ai-seven.vercel.app"
+additional_redirect_urls = [
+  "http://localhost:3000",
+  "http://localhost:3000/",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3000/",
+  "https://careerprep-ai-ten.vercel.app",
+  "https://careerprep-ai-ten.vercel.app/",
+  "https://careerprep-ai-seven.vercel.app",
+  "https://careerprep-ai-seven.vercel.app/",
+  "https://careerprep-ai-xiee-t.vercel.app",
+  "https://careerprep-ai-xiee-t.vercel.app/",
+  "https://careerprep-ai-git-feature-sprint-2-resume-ui-s2301945-rgb.vercel.app",
+  "https://careerprep-ai-git-feature-sprint-2-resume-ui-s2301945-rgb.vercel.app/"
+]

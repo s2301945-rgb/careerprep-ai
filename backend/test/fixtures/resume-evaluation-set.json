@@ -1,0 +1,23 @@
+[
+  {
+    "id": "junior-developer",
+    "resume_text": "Jamie Cruz\nInformation Technology graduate\nBachelor of Science in Information Technology, Bayview University, 2026\nSkills: JavaScript, React, SQL\nBuilt a campus appointment app used by 120 students.\nCompleted an internship at Northstar Labs.",
+    "expected_skill": "JavaScript",
+    "expected_evidence": "used by 120 students",
+    "acceptance": "Every claimed skill and achievement cites a phrase present in the input; aggregate score is 0 to 100."
+  },
+  {
+    "id": "marketing-assistant",
+    "resume_text": "Taylor Lim\nBA Communication, Central College, 2025\nCoordinated three student events with 200 attendees.\nSkills: Canva, social media scheduling, copywriting.",
+    "expected_skill": "copywriting",
+    "expected_evidence": "200 attendees",
+    "acceptance": "The profile preserves the stated credential and skills without inventing full-time experience."
+  },
+  {
+    "id": "it-support-trainee",
+    "resume_text": "Morgan Reyes\nComputer Systems Servicing NC II\nVolunteer lab assistant, Eastview School\nResolved 35 device setup requests and documented Windows installation steps.\nSkills: Windows, troubleshooting, customer support.",
+    "expected_skill": "troubleshooting",
+    "expected_evidence": "35 device setup requests",
+    "acceptance": "Evidence must remain verbatim-grounded and missing employment dates stay unknown."
+  }
+]

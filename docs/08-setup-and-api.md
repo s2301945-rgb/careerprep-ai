@@ -1,0 +1,155 @@
+# Resume workspace setup and API
+
+This is the implemented resume workspace, resume AI, job matching, and text interview API contract on the current Week 4 feature branch. Deployment/test evidence belongs in the [sprint record](06-sprint-log.md).
+
+## Local setup with an existing development Supabase project
+
+Use Node.js 22+ and pnpm 11.25.0. Run commands from the repository root in PowerShell:
+
+```powershell
+pnpm install --frozen-lockfile
+npm --prefix backend ci
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+```
+
+Edit the two ignored environment files locally. Existing files may already contain your settings; inspect them before copying over them. Do not put credentials in chat, screenshots or commits.
+
+| File | Required settings | Source |
+| --- | --- | --- |
+| `.env.local` | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Local Node API URL and the development project's public Supabase Auth settings |
+| `backend/.env` | `FRONTEND_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Exact local frontend origin and the same development Supabase project |
+| `backend/.env` | `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_RESUME_BUCKET=resumes` | Server-only Storage credential; never a public frontend variable |
+| `backend/.env` | `DATABASE_URL`, optional `DATABASE_SSL_CA` | A limited PostgreSQL runtime login, with verified TLS for remote connections |
+| Operator environment | `MIGRATION_DATABASE_URL`, optional `MIGRATION_DATABASE_SSL_CA` | Separate schema-owner/migration credential; remove it from long-running application environments |
+| `backend/.env` | Optional `GROQ_API_KEY`, `GROQ_MODEL` | Server-side resume analysis, job matching and interviews; not needed for resume CRUD or routine tests |
+
+`backend/.env` loads automatically regardless of the shell's working directory. Process environment values take precedence. Supabase's connection panel provides direct/session-pooler URLs; use a connection reachable from Railway and keep the pool bounded. Remote TLS verifies the certificate and hostname. `sslmode=disable` is accepted only for loopback outside production; it is not a hosted workaround.
+
+For the current Supabase pooler, set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt` in Railway (backend working directory). A verified public Supabase CA is included in `backend/certs`; it is not a private key. Local operator commands can use its absolute path. Other providers may use the system trust store or a different CA. Never turn off certificate checks to make a connection succeed.
+
+In the development Supabase Auth settings, enable the intended email/password flow, set the site URL and allow the exact frontend callback URLs. Keep email confirmation behavior explicit: the UI shows a confirmation notice when sign-up produces no session. The browser SDK manages the persisted session and refresh; Node verifies each bearer token using Supabase Auth before resolving an application profile.
+
+## Apply migrations deliberately
+
+The migration runner is an operator action from the **full repository checkout**, whose `supabase/migrations` directory is available. Railway's `/backend` deployment does not contain the sibling migration directory and must not run migrations on app startup.
+
+For a fresh Supabase development project with its standard Auth/Storage schemas:
+
+```powershell
+npm --prefix backend run migrate
+```
+
+For an existing project, first inspect the migration history, current schema, existing legacy users and backup/recovery options. The runner recognizes Supabase CLI migration history. If the two original SQL files were applied manually and have no ledger entry, use the explicit baseline command only after confirming that those original objects already exist:
+
+```powershell
+npm --prefix backend run migrate:baseline
+npm --prefix backend run migrate
+```
+
+The runner records checksums and refuses changed applied migrations. It does not erase/rebuild the project. Never baseline a missing or partial schema to make a command pass. Plain PostgreSQL needs the integration fixture's Supabase stand-ins; use the test suite for that case rather than pretending plain PostgreSQL is the hosted Supabase service.
+
+The follow-up migration:
+
+- Adds a unique nullable `users.auth_user_id` reference to `auth.users`, while retaining existing bigint IDs and ownership foreign keys. Legacy users remain detached until explicitly reconciled; matching email alone does not authorize linking. A legacy email conflict returns `ACCOUNT_LINK_REQUIRED`.
+- Removes unused Laravel `password`/`remember_token`, adds/backfills a checked `display_title`, and preserves the original filename and opaque file identity.
+- Creates private bucket `resumes` with PDF/DOCX and 10 MiB restrictions when Supabase Storage is present.
+- Adds a durable cleanup outbox independent of application/Auth cascades and captures private file keys before profile deletion.
+- Creates the `careerprep_api` **NOLOGIN privilege role**, granting only the table/sequence access needed by this API. It does not create or commit a runtime password.
+
+The Sprint 3 migration `20261107090000_sprint_3_resume_ai.sql` creates the one-to-one private resume profile table with review/revision metadata, adds rubric-score/source-snapshot columns to saved analyses, and grants the runtime role only the read/insert/update access and analysis sequence access it needs. `/ready` checks these tables, so a backend release requires this migration to be applied to that same target database first.
+
+The Week 4 migrations `20261108090000_sprint_4_job_match.sql` and `20261108100000_sprint_4_interviews.sql` add requirement-level assessments, a profile revision on matches, frozen interview source context, and question context quotes. They grant the runtime role only the job and interview table/sequence permissions required by the API. Apply them with the same deliberate migration process before running the Week 4 backend. `/ready` checks the new columns.
+
+A privileged operator should create a separate login and grant it the privilege role, then set its password through the secure database administration flow:
+
+```sql
+CREATE ROLE careerprep_runtime LOGIN INHERIT;
+GRANT careerprep_api TO careerprep_runtime;
+```
+
+For example, `psql`'s interactive `\password careerprep_runtime` avoids embedding the password in checked-in SQL. Use this login in `DATABASE_URL`. The account must not be a superuser, migration owner or Auth admin. Keep `careerprep` outside the Supabase Data API's exposed schemas. Do not grant `anon` or `authenticated` private-table access.
+
+The original metadata migration seeds `public.app_config`. Resume records should be created through authenticated upload with real test documents; no production login passwords or private resumes are seeded automatically. Disposable test identities and fixtures belong only in the test environment.
+
+Start the two services in separate terminals:
+
+```powershell
+npm --prefix backend start
+```
+
+```powershell
+pnpm dev
+```
+
+Open `http://localhost:3000`, create/confirm a development account, sign in and upload a PDF or DOCX. Reload to verify persistence, then rename, download and delete it. Repeat with a second account to verify isolation.
+
+## API reference
+
+Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authorization: Bearer <access-token>` from a real Supabase session. Do not send `user_id`; Node derives ownership from the verified identity. IDs and file sizes are decimal strings to preserve PostgreSQL bigint precision.
+
+| Method/path | Request | Success |
+| --- | --- | --- |
+| `GET /` | None | 200, process liveness |
+| `GET /health` | None | 200, public database metadata state; `not_configured` is not readiness |
+| `GET /ready` | None | 200 only when the private application database check succeeds; otherwise 503 |
+| `POST /ai-test` | Verified token, at most once per identity per minute per process | 200, Groq connectivity status; no application analysis |
+| `GET /api/v1/me` | Verified token | 200, `{ "user": { "id", "email", "name" } }`; safely resolves/creates the profile |
+| `POST /api/v1/resumes` | Multipart `file` and optional `display_title` | 201, `{ "resume": ... }` after storing the real private document and metadata |
+| `GET /api/v1/resumes` | Optional `limit` 1–100 (default 20) and opaque `cursor` | 200, `{ "resumes": [...], "next_cursor": "..." or null }` |
+| `GET /api/v1/resumes/:id` | Owned decimal ID | 200, `{ "resume": ... }` |
+| `PATCH /api/v1/resumes/:id` | JSON `{ "display_title": "Graduate applications" }` | 200, `{ "resume": ... }`; no other fields accepted |
+| `GET /api/v1/resumes/:id/file` | Owned decimal ID | 200, original file attachment with private/no-store caching |
+| `DELETE /api/v1/resumes/:id` | Owned decimal ID | 204 once required object cleanup is complete; repeat delete can complete/reuse its retained task |
+| `POST /api/v1/resumes/:id/extract` | Owned resume; no request body | 200, `{ "profile": ... }`; extracts actual PDF/DOCX text, requests a structured profile, validates factual evidence against source text and saves a draft for review |
+| `GET /api/v1/resumes/:id/profile` | Owned decimal ID | 200, `{ "profile": ... }`; never returns the private extracted source text |
+| `PATCH /api/v1/resumes/:id/profile` | JSON `{ "summary", "skills", "education", "projects", "experience" }` | 200, `{ "profile": ... }`; validates structure/evidence and records user confirmation and profile revision |
+| `POST /api/v1/resumes/:id/analysis` | Owned resume with confirmed profile | 201, `{ "analysis": ... }`; validates provider output, computes the aggregate score in the backend and stores provenance and profile revision |
+| `GET /api/v1/resumes/:id/analysis` | Owned decimal ID | 200, `{ "analysis": ... }` for the latest saved attempt, including failed status when generation failed |
+| `GET /api/v1/jobs` | Verified token | 200, `{ "jobs": [...] }` with up to 50 owned saved jobs |
+| `POST /api/v1/jobs` | JSON `{ "job_title"?, "company_name"?, "description_text" }` | 201, `{ "job": ... }`; description is required, 1–30,000 characters |
+| `GET /api/v1/resumes/:id/jobs/:jobId/match` | Owned resume and job | 200, `{ "match": ... or null }` for latest attempt; `is_stale` flags a comparison made before the current profile revision |
+| `POST /api/v1/resumes/:id/jobs/:jobId/match` | Confirmed resume profile and owned job | 201, `{ "match": ... }`; saved requirement assessments and backend-computed score, or null score when no usable requirements exist |
+| `GET /api/v1/resumes/:id/interviews` | Owned resume | 200, `{ "interviews": [...] }` with up to 20 recent sessions |
+| `POST /api/v1/resumes/:id/interviews` | JSON `{ "job_id": "..." or null }`; confirmed resume profile | 201, `{ "interview": ... }` with five saved questions; job is optional |
+| `GET /api/v1/interviews/:id` | Owned interview | 200, `{ "interview": ... }` with saved questions and answer feedback; private source snapshot is excluded |
+| `POST /api/v1/interviews/:id/questions/:questionId/answer` | JSON `{ "answer_text": "..." }`, 1–30,000 characters | 201, `{ "interview": ... }`; one immutable answer per question, failed evaluation retry accepts the same text |
+
+A resume representation contains `id`, `display_title`, `original_filename`, `mime_type`, `file_size_bytes`, `extraction_status`, nullable extraction failure/time, and creation/update timestamps. It never reveals a permanent public file URL, storage path, owner ID or credential. A new upload starts with `extraction_status: pending`; it does not call an LLM. Replacing a document means uploading a new resume; renaming changes only its title.
+
+The flow is explicit: extract document text and a draft profile, review and confirm the profile, then request analysis, matching, or an interview. PDF text uses Mozilla PDF.js; DOCX text is read from bounded document XML. Image-only/scanned PDFs are not supported and return an extraction error. Extracted text stays in the private database and is never returned to the browser. AI requests cap response sizes and provider time, reject malformed output, check factual evidence against normalized source text, and persist failure rather than fabricate a completed score. All AI feature requests share an in-memory budget on each API process: up to 12 starts per account and 30 starts total in a rolling minute, with one active request per account and four active requests total. Requests rejected by the guard return a retryable `429` or `503` with `Retry-After` and `retry_after_seconds`. They do not start a new AI run. These limits reset on process restart and do not coordinate across replicas. Use a shared limiter before scaling the API horizontally. Stale processing attempts are marked failed when their owner next reads them after two minutes. The default Groq model requests strict JSON schemas; backend validators still enforce evidence and score rules. The resume score averages four validated 0–100 dimensions. Matching uses equal-weight requirements with `met`=1, `partial`=0.5, and `not_evidenced`/`unknown`=0. Interview answer scores use the published weighted rubric, and a completed session averages all five evaluated answers. Tests mock Groq; live Groq verification of matching and interviews has not been performed. The existing `evaluate:resume-ai` command measures only the three synthetic resume-analysis fixtures.
+
+Titles must contain 1–150 characters after trimming; blank/oversized/control-character titles and unknown write fields fail validation. Uploads accept one nonempty PDF/DOCX up to 10 MiB with matching filename, MIME and bounded document-container checks. Extraction rejects unreadable/empty text; OCR for image-only PDFs is unsupported.
+
+JSON mutations require `Content-Type: application/json`; file uploads require `multipart/form-data` with the browser-generated boundary. Request bodies, ZIP expansion and dependency timeouts are bounded. Only exact configured frontend origins receive access, and CORS does not replace token verification. Non-owned and missing resources both return 404.
+
+Error shape:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "display_title must be 1 to 150 characters.",
+    "retryable": false,
+    "request_id": "opaque-request-id"
+  }
+}
+```
+
+Typical statuses: 400 malformed JSON/cursor/query, 401 invalid/missing session, 403 disallowed browser origin, 404 missing/unowned resource, 405 unsupported resource method, 409 explicit legacy-account reconciliation needed, 413 excessive body/file size, 415 wrong request media type, 422 invalid fields/document container, 429 repeated probe and 503 unavailable dependency/cleanup pending. Internal details and source documents are not returned/logged. A request ID allows a safe error report.
+
+If deleting the database record succeeds but Storage fails, the API returns retryable `CLEANUP_PENDING` and retains the key/task. Retry the same delete shortly; the bounded worker also processes due tasks after restart. The task is not removed by an Auth/profile cascade. Upload compensation uses the same durable mechanism and checks for a live resume before removing an object.
+
+## Automated checks
+
+```powershell
+pnpm lint
+pnpm build
+npx tsc --noEmit
+npm --prefix backend run check
+npm --prefix backend test
+```
+
+For database integration, use a separate **disposable local PostgreSQL database** and set `TEST_DATABASE_URL` and `TEST_DATABASE_DISPOSABLE=true` only in that test shell. Then run `npm --prefix backend run test:integration`. The suite creates/removes test schemas and therefore must never target development data you need or any hosted production database. CI provisions its own PostgreSQL service and supplies these test-only values automatically.
+
+See [pipeline and environments](07-pipeline-and-environments.md) for hosting configuration, preview isolation, deployment checks, rollback and measured evidence. The separate `CareerPrepAI/` Vite prototype is preserved, not the production application entry point.
