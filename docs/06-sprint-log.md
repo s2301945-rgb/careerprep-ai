@@ -41,6 +41,8 @@ The initial Gemini probe with `gemini-2.5-flash` returned upstream 404 despite t
 
 The [credential boundary check](evidence/secret-boundary.json) found no configured private credentials in source, generated browser assets or inspected Git history objects. It checks the configured private values, rather than proving absence of every possible unknown historical secret. Reports omit tokens, passwords, object paths and document contents.
 
+Follow-up PR #28 (`feature/week2-integrated-review`, commit `e0374a2`) clarifies that the upload limit is inclusive at 10 MiB. CI run [42383930686](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/42383930686) passed the frontend install/lint/build, API unit tests, PostgreSQL migrations/grants/persistence integration tests, and prototype build. The production health/API boundary job was skipped for this feature-branch preview. Its Vercel deployment is password protected and redirects to Vercel login when opened outside an authorized session; hosted user-flow acceptance remains pending. PR #28 targets the existing Sprint 2 delivery branch and remains unmerged.
+
 ## Hosting handoff
 
 Supabase CLI is authenticated and linked. Auth confirmation redirects now allow the replacement frontend, the existing frontend, the known UI review alias and exact local origins. Email confirmation and unrelated remote settings were preserved.
