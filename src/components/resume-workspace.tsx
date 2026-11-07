@@ -28,6 +28,8 @@ type ResumeWorkspaceProps = {
   sessionNotice?: string;
 };
 
+type ResumeUpdate = Pick<ResumeRecord, "id"> & Partial<ResumeRecord>;
+
 const resumeLimitBytes = 10 * 1024 * 1024;
 
 function formatBytes(value: string) {
@@ -162,8 +164,8 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
     }
   }
 
-  const updateResume = useCallback((updated: ResumeRecord) => {
-    setResumes((current) => current.map((resume) => resume.id === updated.id ? updated : resume));
+  const updateResume = useCallback((updated: ResumeUpdate) => {
+    setResumes((current) => current.map((resume) => resume.id === updated.id ? { ...resume, ...updated } : resume));
   }, []);
 
   const removeResume = useCallback((id: string) => {
@@ -228,15 +230,16 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
                 <h2 id="library-title">My resumes <span className="heading-count">{loading ? "…" : resumes.length}</span></h2>
                 <p className="section-description">Your resume files, saved in one place.</p>
               </div>
-              <button className="icon-button" aria-label="Refresh resumes" disabled={loading} onClick={() => void loadPage()} type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2" /></svg></button>
+              <button className="icon-button" aria-label="Refresh resumes" disabled={loading || loadingMore} onClick={() => void loadPage()} type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.7 9A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.3-2" /></svg></button>
             </div>
 
             <label className="search-field" htmlFor="resume-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.6" /><path d="m16 16 4.3 4.3" /></svg><input autoComplete="off" id="resume-search" onChange={(event) => setSearch(event.target.value)} placeholder="Search your resumes" type="search" value={search} /></label>
 
             {loadError && !loadError.toLowerCase().includes("session") && <div className="notice notice-error list-error" role="alert"><span>{loadError}</span><button className="text-button" onClick={() => void loadPage()} type="button">Try again</button></div>}
             {loading ? (
-              <div className="resume-list" aria-label="Loading resumes" aria-live="polite">
-                {[0, 1, 2].map((item) => <div className="resume-skeleton" key={item}><span className="skeleton-icon" /><span className="skeleton-lines"><i /><i /></span><span className="skeleton-action" /></div>)}
+              <div className="resume-list" role="status">
+                <span className="sr-only">Loading resumes…</span>
+                {[0, 1, 2].map((item) => <div className="resume-skeleton" aria-hidden="true" key={item}><span className="skeleton-icon" /><span className="skeleton-lines"><i /><i /></span><span className="skeleton-action" /></div>)}
               </div>
             ) : filteredResumes.length > 0 ? (
               <div className="resume-list" aria-label="Saved resumes">
@@ -248,7 +251,7 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
                       <p>{resume.original_filename}</p>
                       <div className="resume-row-meta"><span>{formatBytes(resume.file_size_bytes)}</span><span className="meta-divider" aria-hidden="true">·</span><span>Saved {formatDate(resume.created_at)}</span></div>
                     </div>
-                    <button className="row-action" onClick={() => setSelectedId(resume.id)} type="button">View details<span aria-hidden="true">›</span></button>
+                    <button className="row-action" aria-label={`View details for ${resume.display_title}`} onClick={() => setSelectedId(resume.id)} type="button">View details<span aria-hidden="true">›</span></button>
                   </article>
                 ))}
               </div>
@@ -297,7 +300,7 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
   );
 }
 
-function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string; onClose: () => void; onDeleted: (id: string) => void; onUpdated: (resume: ResumeRecord) => void }) {
+function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string; onClose: () => void; onDeleted: (id: string) => void; onUpdated: (resume: ResumeUpdate) => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [resume, setResume] = useState<ResumeRecord | null>(null);
   const [title, setTitle] = useState("");
@@ -310,8 +313,12 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
   const [actionNotice, setActionNotice] = useState("");
   const [profile, setProfile] = useState<ResumeProfile | null>(null);
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
-  const [aiBusy, setAiBusy] = useState(false);
+  const [aiAction, setAiAction] = useState<"extract" | "confirm" | "analyze" | null>(null);
   const [aiError, setAiError] = useState("");
+  const [aiLoading, setAiLoading] = useState(true);
+  const [aiLoadError, setAiLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const aiBusy = aiAction !== null;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -329,22 +336,33 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
     }).catch((reason: unknown) => {
       if (active) setActionError(reason instanceof Error ? reason.message : "Resume details could not be loaded.");
     }).finally(() => { if (active) setLoading(false); });
-    getResumeProfile(id).then((result) => {
-      if (active) setProfile(result.profile);
-    }).catch((reason: unknown) => {
-      if (active && (!(reason instanceof ApiError) || reason.status !== 404)) {
-        setAiError(reason instanceof Error ? reason.message : "The resume profile could not be loaded.");
+    Promise.allSettled([getResumeProfile(id), getResumeAnalysis(id)]).then(([savedProfile, savedAnalysis]) => {
+      if (!active) return;
+      if (savedProfile.status === "fulfilled") {
+        setProfile(savedProfile.value.profile);
+      } else if (!(savedProfile.reason instanceof ApiError) || savedProfile.reason.code !== "PROFILE_NOT_FOUND") {
+        setAiLoadError("The saved profile could not be loaded. Check the connection and try again.");
       }
-    });
-    getResumeAnalysis(id).then((result) => {
-      if (active) setAnalysis(result.analysis);
-    }).catch((reason: unknown) => {
-      if (active && (!(reason instanceof ApiError) || reason.status !== 404)) {
-        setAiError(reason instanceof Error ? reason.message : "The resume analysis could not be loaded.");
+      if (savedAnalysis.status === "fulfilled") {
+        setAnalysis(savedAnalysis.value.analysis);
+      } else if (!(savedAnalysis.reason instanceof ApiError) || savedAnalysis.reason.code !== "ANALYSIS_NOT_FOUND") {
+        setAiLoadError((current) => current || "The saved analysis could not be loaded. Check the connection and try again.");
       }
+      setAiLoading(false);
     });
     return () => { active = false; };
-  }, [id]);
+  }, [id, loadAttempt]);
+
+  function retryDetails() {
+    setLoading(true);
+    setAiLoading(true);
+    setActionError("");
+    setAiError("");
+    setAiLoadError("");
+    setProfile(null);
+    setAnalysis(null);
+    setLoadAttempt((attempt) => attempt + 1);
+  }
 
   async function saveTitle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -410,25 +428,30 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
   }
 
   async function extractProfile() {
-    setAiBusy(true);
+    if (!resume) return;
+    setAiAction("extract");
     setAiError("");
     setActionNotice("");
     try {
       const result = await extractResumeProfile(id);
       setProfile(result.profile);
       setAnalysis(null);
+      const updated: ResumeUpdate = { id, extraction_status: "completed", extraction_error: null };
+      setResume((current) => current ? { ...current, ...updated } : current);
+      onUpdated(updated);
       setActionNotice("Profile extracted. Review the details before confirming them.");
     } catch (reason) {
       setAiError(reason instanceof Error ? reason.message : "The resume profile could not be extracted.");
     } finally {
-      setAiBusy(false);
+      setAiAction(null);
     }
   }
 
   async function confirmProfile() {
     if (!profile) return;
-    setAiBusy(true);
+    setAiAction("confirm");
     setAiError("");
+    setActionNotice("");
     try {
       const result = await confirmResumeProfile(id, {
         summary: profile.summary,
@@ -442,12 +465,12 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
     } catch (reason) {
       setAiError(reason instanceof Error ? reason.message : "The profile could not be confirmed.");
     } finally {
-      setAiBusy(false);
+      setAiAction(null);
     }
   }
 
   async function analyzeResume() {
-    setAiBusy(true);
+    setAiAction("analyze");
     setAiError("");
     setActionNotice("");
     try {
@@ -457,7 +480,7 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
     } catch (reason) {
       setAiError(reason instanceof Error ? reason.message : "The resume could not be analyzed.");
     } finally {
-      setAiBusy(false);
+      setAiAction(null);
     }
   }
 
@@ -508,45 +531,57 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
 
             <form className="rename-form" onSubmit={saveTitle}>
               <label className="field-label" htmlFor="rename-title">Display title</label>
-              <div className="rename-control"><input id="rename-title" maxLength={150} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="button button-secondary" disabled={saving || title.trim() === resume.display_title} type="submit">{saving ? <><Spinner dark /> Saving…</> : "Save title"}</button></div>
+              <div className="rename-control"><input id="rename-title" maxLength={150} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="button button-secondary" disabled={saving || deleting || title.trim() === resume.display_title} type="submit">{saving ? <><Spinner dark /> Saving…</> : "Save title"}</button></div>
             </form>
 
             <section className="extraction-info" aria-labelledby="extraction-title">
+              {aiLoading && <p className="inline-message" role="status">Checking saved profile and analysis…</p>}
+              {aiLoadError && <div className="notice notice-error" role="alert">
+                <span>{aiLoadError}</span>{" "}
+                <button className="text-button" onClick={retryDetails} type="button">Try again</button>
+              </div>}
+              {aiAction && <p className="sr-only" role="status">
+                {aiAction === "extract" ? "Extracting resume profile." : aiAction === "confirm" ? "Saving confirmed profile." : "Analyzing resume."}
+              </p>}
               <div className="extraction-info-title"><span className="extraction-spark" aria-hidden="true">✦</span><div><h3 id="extraction-title">Resume processing</h3><p>{resume.extraction_status === "completed" ? "Text extraction is complete." : resume.extraction_status === "processing" ? "Your document is being processed." : resume.extraction_status === "failed" ? "This document could not be processed." : "Your file is saved. Extract a profile to review your details and generate an analysis."}</p></div></div>
               <p className="ai-privacy-note">When you run extraction or analysis, resume text is sent securely from the backend to Groq for processing. It is not sent from your browser.</p>
-              {!profile && <button className="button button-secondary" disabled={aiBusy} onClick={() => void extractProfile()} type="button">{aiBusy ? <><Spinner dark /> Extracting profile…</> : resume.extraction_status === "failed" ? "Retry profile extraction" : "Extract resume profile"}</button>}
-              {profile && <div className="ai-profile-card">
+              {!aiLoading && !aiLoadError && !profile && <button className="button button-secondary" disabled={aiBusy || deleting} onClick={() => void extractProfile()} type="button">{aiBusy ? <><Spinner dark /> Extracting profile…</> : resume.extraction_status === "failed" ? "Retry profile extraction" : "Extract resume profile"}</button>}
+              {!aiLoading && !aiLoadError && profile && <div className="ai-profile-card">
                 <div className="ai-result-heading"><div><span className="eyebrow">AI EXTRACTED PROFILE</span><h4>Review the details</h4></div><span className={`resume-status ${profile.review_status === "confirmed" ? "resume-status-completed" : "resume-status-pending"}`}>{profile.review_status === "confirmed" ? "Confirmed" : "Needs review"}</span></div>
-                {profile.review_status === "draft" ? <>
+                {profile.review_status === "draft" ? <fieldset className="ai-profile-editor" disabled={aiBusy || deleting} aria-label="Edit extracted resume profile">
                   <label className="ai-edit-field"><span>Summary</span><textarea maxLength={700} onChange={(event) => updateProfile((current) => ({ ...current, summary: event.target.value }))} value={profile.summary} /></label>
-                  <div className="ai-profile-section"><strong>Skills and source evidence</strong>{profile.skills.map((skill, index) => <div className="ai-edit-row" key={`${skill.name}-${index}`}><input aria-label={`Skill ${index + 1}`} maxLength={80} onChange={(event) => updateSkill(index, "name", event.target.value)} value={skill.name} /><input aria-label={`Evidence for skill ${index + 1}`} maxLength={400} onChange={(event) => updateSkill(index, "evidence", event.target.value)} value={skill.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, skills: current.skills.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, skills: [...current.skills, { name: "", evidence: "" }] }))} type="button">Add a skill</button></div>
-                  <div className="ai-profile-section"><strong>Education</strong>{profile.education.map((item, index) => <div className="ai-edit-group" key={`${item.institution}-${index}`}><input aria-label={`Credential ${index + 1}`} maxLength={160} placeholder="Credential or degree" onChange={(event) => updateEducation(index, "credential", event.target.value)} value={item.credential} /><input aria-label={`Institution ${index + 1}`} maxLength={160} placeholder="School or institution" onChange={(event) => updateEducation(index, "institution", event.target.value)} value={item.institution} /><input aria-label={`Education evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateEducation(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, education: current.education.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove education</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, education: [...current.education, { credential: "", institution: "", evidence: "" }] }))} type="button">Add education</button></div>
-                  <div className="ai-profile-section"><strong>Projects</strong>{profile.projects.map((item, index) => <div className="ai-edit-group" key={`${item.name}-${index}`}><input aria-label={`Project ${index + 1}`} maxLength={160} placeholder="Project name" onChange={(event) => updateProject(index, "name", event.target.value)} value={item.name} /><input aria-label={`Project description ${index + 1}`} maxLength={300} placeholder="What the project did" onChange={(event) => updateProject(index, "description", event.target.value)} value={item.description} /><input aria-label={`Project evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateProject(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, projects: current.projects.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove project</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, projects: [...current.projects, { name: "", description: "", evidence: "" }] }))} type="button">Add a project</button></div>
-                  <div className="ai-profile-section"><strong>Experience and project highlights</strong>{profile.experience.map((item, index) => <div className="ai-edit-group" key={`${item.role}-${index}`}><input aria-label={`Role ${index + 1}`} maxLength={160} placeholder="Role or project" onChange={(event) => updateExperience(index, "role", event.target.value)} value={item.role} /><input aria-label={`Organization ${index + 1}`} maxLength={160} placeholder="Organization (optional)" onChange={(event) => updateExperience(index, "organization", event.target.value)} value={item.organization} />{item.highlights.map((highlight, highlightIndex) => <div className="ai-edit-row" key={highlightIndex}><input aria-label={`Highlight ${index + 1}.${highlightIndex + 1}`} maxLength={300} placeholder="What you did" onChange={(event) => updateHighlight(index, highlightIndex, "text", event.target.value)} value={highlight.text} /><input aria-label={`Highlight evidence ${index + 1}.${highlightIndex + 1}`} maxLength={400} placeholder="Exact resume evidence" onChange={(event) => updateHighlight(index, highlightIndex, "evidence", event.target.value)} value={highlight.evidence} /></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.map((entry, itemIndex) => itemIndex === index ? { ...entry, highlights: [...entry.highlights, { text: "", evidence: "" }] } : entry) }))} type="button">Add a highlight</button><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove experience</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: [...current.experience, { role: "", organization: "", highlights: [] }] }))} type="button">Add experience</button></div>
-                </> : <>
+                  <div className="ai-profile-section"><strong>Skills and source evidence</strong>{profile.skills.map((skill, index) => <div className="ai-edit-row" key={index}><input aria-label={`Skill ${index + 1}`} maxLength={80} onChange={(event) => updateSkill(index, "name", event.target.value)} value={skill.name} /><input aria-label={`Evidence for skill ${index + 1}`} maxLength={400} onChange={(event) => updateSkill(index, "evidence", event.target.value)} value={skill.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, skills: current.skills.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, skills: [...current.skills, { name: "", evidence: "" }] }))} type="button">Add a skill</button></div>
+                  <div className="ai-profile-section"><strong>Education</strong>{profile.education.map((item, index) => <div className="ai-edit-group" key={index}><input aria-label={`Credential ${index + 1}`} maxLength={160} placeholder="Credential or degree" onChange={(event) => updateEducation(index, "credential", event.target.value)} value={item.credential} /><input aria-label={`Institution ${index + 1}`} maxLength={160} placeholder="School or institution, if stated" onChange={(event) => updateEducation(index, "institution", event.target.value)} value={item.institution} /><input aria-label={`Education evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateEducation(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, education: current.education.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove education</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, education: [...current.education, { credential: "", institution: "", evidence: "" }] }))} type="button">Add education</button></div>
+                  <div className="ai-profile-section"><strong>Projects</strong>{profile.projects.map((item, index) => <div className="ai-edit-group" key={index}><input aria-label={`Project ${index + 1}`} maxLength={160} placeholder="Project name" onChange={(event) => updateProject(index, "name", event.target.value)} value={item.name} /><input aria-label={`Project description ${index + 1}`} maxLength={300} placeholder="What the project did" onChange={(event) => updateProject(index, "description", event.target.value)} value={item.description} /><input aria-label={`Project evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateProject(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, projects: current.projects.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove project</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, projects: [...current.projects, { name: "", description: "", evidence: "" }] }))} type="button">Add a project</button></div>
+                  <div className="ai-profile-section"><strong>Experience and project highlights</strong>{profile.experience.map((item, index) => <div className="ai-edit-group" key={index}><input aria-label={`Role ${index + 1}`} maxLength={160} placeholder="Role or project, if stated" onChange={(event) => updateExperience(index, "role", event.target.value)} value={item.role} /><input aria-label={`Organization ${index + 1}`} maxLength={160} placeholder="Organization (optional)" onChange={(event) => updateExperience(index, "organization", event.target.value)} value={item.organization} />{item.highlights.map((highlight, highlightIndex) => <div className="ai-edit-row" key={highlightIndex}><input aria-label={`Highlight ${index + 1}.${highlightIndex + 1}`} maxLength={300} placeholder="What you did" onChange={(event) => updateHighlight(index, highlightIndex, "text", event.target.value)} value={highlight.text} /><input aria-label={`Highlight evidence ${index + 1}.${highlightIndex + 1}`} maxLength={400} placeholder="Exact resume evidence" onChange={(event) => updateHighlight(index, highlightIndex, "evidence", event.target.value)} value={highlight.evidence} /></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.map((entry, itemIndex) => itemIndex === index ? { ...entry, highlights: [...entry.highlights, { text: "", evidence: "" }] } : entry) }))} type="button">Add a highlight</button><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove experience</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: [...current.experience, { role: "", organization: "", highlights: [] }] }))} type="button">Add experience</button></div>
+                </fieldset> : <>
                   <p className="ai-profile-summary">{profile.summary}</p>
                   {profile.skills.length > 0 && <div className="ai-profile-section"><strong>Skills</strong><ul>{profile.skills.map((skill, index) => <li key={`${skill.name}-${index}`}><span>{skill.name}</span><small>“{skill.evidence}”</small></li>)}</ul></div>}
                   {profile.education.length > 0 && <div className="ai-profile-section"><strong>Education</strong><ul>{profile.education.map((item, index) => <li key={`${item.institution}-${index}`}><span>{[item.credential, item.institution].filter(Boolean).join(" · ")}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
                   {profile.projects.length > 0 && <div className="ai-profile-section"><strong>Projects</strong><ul>{profile.projects.map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}: {item.description}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
                   {profile.experience.length > 0 && <div className="ai-profile-section"><strong>Experience</strong><ul>{profile.experience.map((item, index) => <li key={`${item.role}-${index}`}><span>{[item.role, item.organization].filter(Boolean).join(" · ")}</span>{item.highlights.map((highlight, highlightIndex) => <small key={highlightIndex}>{highlight.text} — “{highlight.evidence}”</small>)}</li>)}</ul></div>}
                 </>}
-                {profile.review_status === "draft" ? <button className="button button-secondary" disabled={aiBusy} onClick={() => void confirmProfile()} type="button">{aiBusy ? <><Spinner dark /> Saving…</> : "Confirm this profile"}</button> : <button className="button button-secondary" disabled={aiBusy} onClick={() => void analyzeResume()} type="button">{aiBusy ? <><Spinner dark /> Analyzing…</> : analysis?.status === "completed" ? "Run analysis again" : analysis?.status === "failed" ? "Retry analysis" : "Analyze resume"}</button>}
+                {profile.review_status === "draft" ? <button className="button button-secondary" disabled={aiBusy || deleting} onClick={() => void confirmProfile()} type="button">{aiBusy ? <><Spinner dark /> Saving…</> : "Confirm this profile"}</button> : <button className="button button-secondary" disabled={aiBusy || deleting} onClick={() => void analyzeResume()} type="button">{aiBusy ? <><Spinner dark /> Analyzing…</> : analysis?.status === "completed" ? "Run analysis again" : analysis?.status === "failed" ? "Retry analysis" : "Analyze resume"}</button>}
               </div>}
-              {analysis?.status === "completed" && <AnalysisResult analysis={analysis} />}
-              {analysis?.status === "failed" && <p className="inline-message inline-error">The last analysis failed. Retry it after checking the service status.</p>}
+              {!aiLoading && !aiLoadError && analysis?.status === "completed" && <AnalysisResult analysis={analysis} />}
+              {!aiLoading && !aiLoadError && analysis?.status === "failed" && <p className="inline-message inline-error" role="status">The last analysis failed. You can retry it.</p>}
+              {!aiLoading && !aiLoadError && analysis?.status === "processing" && !aiBusy && <div className="inline-message" role="status">
+                An analysis was started. Refresh to check for a result.{" "}
+                <button className="text-button" onClick={retryDetails} type="button">Refresh status</button>
+              </div>}
             </section>
 
             {confirmDelete ? (
               <div className="delete-confirm" role="group" aria-labelledby="delete-confirm-title" aria-describedby="delete-confirm-description">
                 <div className="delete-confirm-icon" aria-hidden="true">!</div>
                 <div className="delete-confirm-copy"><h3 id="delete-confirm-title">Delete this resume?</h3><p id="delete-confirm-description">This removes the saved resume and its stored file. You can’t undo this action.</p></div>
-                <div className="delete-confirm-actions"><button className="button button-secondary" disabled={deleting} onClick={() => setConfirmDelete(false)} type="button">Keep resume</button><button className="button button-danger" disabled={deleting} onClick={() => void confirmAndDelete()} type="button">{deleting ? <><Spinner /> Deleting…</> : "Delete resume"}</button></div>
+                <div className="delete-confirm-actions"><button className="button button-secondary" disabled={deleting} onClick={() => setConfirmDelete(false)} type="button">Keep resume</button><button className="button button-danger" disabled={deleting || aiBusy || saving || downloading} onClick={() => void confirmAndDelete()} type="button">{deleting ? <><Spinner /> Deleting…</> : "Delete resume"}</button></div>
               </div>
             ) : (
-              <div className="detail-actions"><button className="button button-secondary" disabled={downloading} onClick={() => void downloadFile()} type="button">{downloading ? <><Spinner dark /> Preparing file…</> : <><span aria-hidden="true">↓</span> Download original</>}</button><button className="button button-danger-quiet" onClick={() => { setActionError(""); setConfirmDelete(true); }} type="button">Delete resume</button></div>
+              <div className="detail-actions"><button className="button button-secondary" disabled={downloading || deleting} onClick={() => void downloadFile()} type="button">{downloading ? <><Spinner dark /> Preparing file…</> : <><span aria-hidden="true">↓</span> Download original</>}</button><button className="button button-danger-quiet" disabled={aiBusy || saving || downloading} onClick={() => { setActionError(""); setConfirmDelete(true); }} type="button">Delete resume</button></div>
             )}
           </>
-        ) : <div className="empty-state detail-empty"><h3>Resume details unavailable</h3><p>It may have been removed or you may have signed out.</p><button className="button button-secondary" onClick={onClose} type="button">Close</button></div>}
+        ) : <div className="empty-state detail-empty"><h3>Resume details unavailable</h3><p>It may have been removed or you may have signed out.</p><button className="button button-secondary" onClick={retryDetails} type="button">Try again</button></div>}
       </div>
     </dialog>
   );

@@ -307,6 +307,7 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 .ai-edit-group > .ai-edit-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .ai-remove-button, .ai-add-button { justify-self: start; padding: 5px 3px; border: 0; color: #7b725e; background: transparent; cursor: pointer; font: inherit; font-size: .65rem; text-decoration: underline; text-underline-offset: 2px; }
 .ai-remove-button { color: #9a6460; }
+.ai-profile-editor { display: grid; gap: 13px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .ai-profile-card > .button { justify-self: start; min-height: 38px; font-size: .73rem; }
 .analysis-result { background: #fdfefb; }
 .analysis-score { display: flex; align-items: baseline; gap: 3px; color: #526b42; font-size: 1.6rem; letter-spacing: -.05em; }

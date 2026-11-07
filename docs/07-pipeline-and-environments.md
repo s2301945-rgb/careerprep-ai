@@ -84,10 +84,16 @@ Sources: [main baseline](https://github.com/s2301945-rgb/careerprep-ai/actions/r
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 baseline sample | 0.46 min job time | 0.42 min job time | 100% of 9 sampled runs | Not fully measured | Not measured | Not fully measured | Not measured | Existing cached install/lint/build pipeline |
 | 2 implementation | Recorded API/UI/delivery runs: longest jobs 28/32/34 s; mean 31.3 s (0.52 min), excluding queue time | Pending merge | 3/3 recorded runs passed | Replacement frontend setup deployment ready; full-stack acceptance pending | Pending merge | Railway rejected project creation during provider outage | Pending provider recovery | Add API/PostgreSQL tests, parallel jobs, cancellation and bounded smoke |
-| 3 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
-| 4 | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Planned |
+| 3 | Two Week 3 PR runs: longest jobs 35.67 s and 19.34 s | Pending merge | 2/2 recorded runs passed | Pending | Pending | Pending | Pending | Mocked AI and PostgreSQL integration |
+| 4 | Hosted run pending | Pending merge | Pending | Pending | Pending | Pending | Pending | Persist `.next/cache` across eligible CI runs |
 
 Optimization hypothesis: separating independent jobs and cancelling obsolete runs improves feedback and avoids wasted work. The backend job adds meaningful coverage, so a runtime increase alone is not a regression. Record the new wall-clock/queue measurements before claiming an improvement; no before/after speedup has been established yet.
+
+### Week 4 cache measurement
+
+The existing pnpm dependency cache missed in [Week 3 run 42392368562](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/42392368562/job/128462438624) and restored in [run 42394234735](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/42394234735/job/128468060670). The install logs report 6.9 seconds and 3.4 seconds respectively. This is a two-run observation with runner and network variation. Both runs reported a missing Next.js build cache.
+
+Week 4 adds a separate cache for `.next/cache`, keyed by runner OS, architecture, Node major version, lockfile and frontend inputs. The workflow still installs dependencies, lints, and builds on cache hits. Compare hosted cold and warm build and total job durations once the Week 4 branch is reviewed and published. No hosted speedup is claimed. In a local Windows run using the same frozen dependencies and source, the first production build took 19.93 seconds wall time and the immediate warm build took 13.90 seconds (6.03 seconds faster, about 30%). Both builds passed and produced the Turbopack cache directory. This single pair includes other warm-start effects and does not predict hosted job time.
 
 ## Incident record
 

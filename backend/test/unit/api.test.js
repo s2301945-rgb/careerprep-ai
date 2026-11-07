@@ -3,6 +3,7 @@ import http from "node:http";
 import { after, before, beforeEach, test } from "node:test";
 import { createApp } from "../../src/server.js";
 import { ApiError } from "../../src/errors.js";
+import { createResumeAiGuard } from "../../src/resume-ai-guard.js";
 
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 const ALLOWED_ORIGIN = "https://careerprep.example";
@@ -273,6 +274,7 @@ async function uploadResume(baseUrl, { token = "tokenA", filename = "Resume.pdf"
 
 let server;
 let baseUrl;
+let aiClock = 0;
 
 before(async () => {
   server = createApp({
@@ -281,6 +283,7 @@ before(async () => {
     auth,
     storage,
     aiProbe: { async check() { return { ai: "connected" }; } },
+    resumeAiGuard: createResumeAiGuard({ maxStartsPerUser: 2, now: () => aiClock }),
     resumeAI: {
       async extractProfile() {
         return {
@@ -317,6 +320,7 @@ before(async () => {
 });
 
 beforeEach(() => {
+  aiClock += 60_000;
   state.resumes.clear();
   state.storage.clear();
   state.extractedTexts.clear();
@@ -390,6 +394,55 @@ test("resume profile extraction, explicit confirmation and saved analysis are au
   assert.equal(otherUser.status, 404);
   const loaded = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { headers: authHeader() });
   assert.equal((await loaded.json()).analysis.id, analysis.id);
+
+  state.lastDownloadPath = null;
+  const limited = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/extract`, {
+    method: "POST", headers: authHeader(),
+  });
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get("retry-after"), "60");
+  const { error } = await limited.json();
+  assert.equal(error.code, "AI_RATE_LIMITED");
+  assert.equal(error.retryable, true);
+  assert.equal(state.lastDownloadPath, null);
+  assert.equal(state.profiles.get(resumeId).review_status, "confirmed");
+});
+
+test("resume AI limits concurrent work and aggregate starts, then recovers as slots and time windows expire", () => {
+  let now = 0;
+  const guard = createResumeAiGuard({
+    windowMs: 10_000,
+    maxStarts: 2,
+    maxConcurrent: 1,
+    now: () => now,
+  });
+
+  const releaseA = guard.start("user-a");
+  assert.throws(() => guard.start("user-a"), {
+    status: 429,
+    code: "AI_REQUEST_IN_PROGRESS",
+    retryable: true,
+  });
+  assert.throws(() => guard.start("user-b"), {
+    status: 503,
+    code: "AI_CAPACITY_REACHED",
+    retryable: true,
+  });
+  releaseA();
+
+  now = 5000;
+  const releaseB = guard.start("user-b");
+  releaseB();
+  assert.throws(() => guard.start("user-c"), {
+    status: 503,
+    code: "AI_CAPACITY_REACHED",
+    retryable: true,
+    details: { retry_after_seconds: 5 },
+  });
+
+  now = 10_000;
+  const releaseC = guard.start("user-c");
+  releaseC();
 });
 
 test("resume upload validates document bytes, returns private metadata, and hides the storage key", async () => {

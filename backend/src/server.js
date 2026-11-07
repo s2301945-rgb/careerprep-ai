@@ -8,6 +8,7 @@ import { createSupabaseAuth, requireIdentity } from "./auth.js";
 import { createPool, createRepository } from "./database.js";
 import { createSupabaseStorage } from "./storage.js";
 import { createGroqProbe, createProbeRateLimiter } from "./ai.js";
+import { createResumeAiGuard } from "./resume-ai-guard.js";
 import {
   createResumeAI,
   validateResumeProfile,
@@ -71,6 +72,10 @@ function respondError(request, response, requestId, error, corsHeaders, logger) 
       ? error.code
       : "UNCLASSIFIED";
     logger.error?.(JSON.stringify({ request_id: requestId, code: "INTERNAL_ERROR", dependency_code: safeCode }));
+  }
+  const retryAfter = error instanceof ApiError ? error.details?.retry_after_seconds : undefined;
+  if (Number.isSafeInteger(retryAfter) && retryAfter > 0) {
+    response.setHeader("Retry-After", String(retryAfter));
   }
   sendError(response, requestId, error, corsHeaders);
 }
@@ -240,6 +245,7 @@ export function createApp({
   aiProbe = null,
   resumeAI = null,
   rateLimiter = createProbeRateLimiter(),
+  resumeAiGuard = createResumeAiGuard(),
   fetchImpl = fetch,
   logger = console,
 } = {}) {
@@ -323,6 +329,7 @@ export function createApp({
           if (resume.storage_disk !== "supabase") {
             throw new ApiError(503, "FILE_UNAVAILABLE", "The stored resume is not available.", true);
           }
+          const releaseAiSlot = resumeAiGuard.start(user.id);
           try {
             const object = await storage.download(resume.storage_path);
             const sourceText = await extractResumeText({ mimeType: resume.mime_type, buffer: object.buffer });
@@ -346,6 +353,8 @@ export function createApp({
               await repo.failResumeExtraction(user.id, resumeId, error.code).catch(() => {});
             }
             throw error;
+          } finally {
+            releaseAiSlot();
           }
         }
 
@@ -399,13 +408,15 @@ export function createApp({
           if (typeof context.sourceText !== "string" || !context.sourceText.trim()) {
             throw new ApiError(409, "EXTRACTION_REQUIRED", "Extract readable resume text before analysis.");
           }
-          const analysisId = await repo.createResumeAnalysisRun(user.id, resumeId, {
-            profile_revision: context.profile.profile_revision,
-            profile_schema_version: context.profile.schema_version,
-            rubric_version: ANALYSIS_RUBRIC_VERSION,
-          });
-          if (!analysisId) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Review and confirm the extracted profile before analysis.");
+          const releaseAiSlot = resumeAiGuard.start(user.id);
+          let analysisId;
           try {
+            analysisId = await repo.createResumeAnalysisRun(user.id, resumeId, {
+              profile_revision: context.profile.profile_revision,
+              profile_schema_version: context.profile.schema_version,
+              rubric_version: ANALYSIS_RUBRIC_VERSION,
+            });
+            if (!analysisId) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Review and confirm the extracted profile before analysis.");
             const generated = await resumeAiService.analyze(context.sourceText, context.profile);
             const analysis = await repo.completeResumeAnalysis(user.id, resumeId, analysisId, {
               result: generated.result,
@@ -421,8 +432,10 @@ export function createApp({
             const errorCode = typeof error?.code === "string" && /^[A-Z0-9_-]{1,100}$/.test(error.code)
               ? error.code
               : "AI_FAILED";
-            await repo.failResumeAnalysis(user.id, resumeId, analysisId, errorCode).catch(() => {});
+            if (analysisId) await repo.failResumeAnalysis(user.id, resumeId, analysisId, errorCode).catch(() => {});
             throw error;
+          } finally {
+            releaseAiSlot();
           }
         }
 

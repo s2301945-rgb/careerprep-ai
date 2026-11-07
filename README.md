@@ -1,33 +1,22 @@
 # CareerPrep AI
 
-CareerPrep AI helps college students and fresh graduates organize resumes and prepare for entry-level applications. The Sprint 2 implementation adds a private resume workspace with Supabase sign-in, real PDF/DOCX upload, list/detail, rename, authorized download and deletion through a standalone Node API.
+CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. The app supports sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, and AI analysis that cites the resume. Job-description matching and text mock interviews are planned in the [technical design](docs/02-technical-design.md).
 
-Resume text extraction, AI analysis, job-description matching and mock interviews remain required later work. The current workspace stores documents without claiming an AI analysis. [Sprint evidence](docs/06-sprint-log.md) distinguishes implementation from reviewed, deployed completion.
+## How it works
 
-## Implemented scope
+The Next.js frontend uses Supabase Auth for sign-in. It sends authenticated resume requests to a standalone Node.js API. The API enforces ownership, stores metadata and results in Supabase PostgreSQL, and keeps originals in a private Supabase Storage bucket. During extraction and analysis, the API sends extracted text to Groq, checks the returned structure and evidence, and saves the result. The user reviews and confirms the profile before requesting analysis.
 
-- Next.js authentication and resume workspace, with loading, empty and error states
-- Standalone Node.js backend deployed separately on Railway
-- Verified Supabase Auth identities mapped to owned application profiles
-- Private PostgreSQL resume CRUD and private Supabase Storage, with durable file-cleanup recovery
-- `GET /health` metadata check and `GET /ready` private-schema readiness
-- Supabase PostgreSQL read through `public.app_config`
-- Authenticated, bounded `POST /ai-test` server-side Groq connectivity probe
-- GitHub Actions frontend checks, API tests, real PostgreSQL integration tests and prototype build
-- Vercel frontend and Railway backend deployment configuration
+| Area | Technology and reference |
+| --- | --- |
+| Frontend | Next.js, React, and TypeScript on Vercel |
+| Backend | Node.js HTTP API on Railway. [API reference](docs/08-setup-and-api.md#api-reference) |
+| Data | Supabase Auth, PostgreSQL, and private Storage. [Database relationships](docs/03-database-reference.md) |
+| AI | Groq with backend validation and a synthetic evaluation set. [AI flow and evaluation](docs/08-setup-and-api.md#api-reference) |
+| Delivery | GitHub Actions. [Pipeline, environment setup, and rollback](docs/07-pipeline-and-environments.md) |
 
-Read the [setup and API guide](docs/08-setup-and-api.md) for configuration, migrations, ownership rules and recovery. The files in this PR stack require the hosted environment changes and review listed in the sprint record before the live app reflects this scope.
+See the [architecture diagram](docs/02-technical-design.md) and [sprint record](docs/06-sprint-log.md) for the design and verification history. The release status is tracked in the [changelog](CHANGELOG.md).
 
-## Technology
-
-- Frontend: Next.js, React, TypeScript on Vercel
-- Backend: Node.js HTTP API on Railway
-- Database: Supabase PostgreSQL
-- AI provider: Groq
-- CI: GitHub Actions
-- Deployment: Vercel
-
-## Team Roles
+## Team roles
 
 | Role | Responsibility |
 | --- | --- |
@@ -36,148 +25,48 @@ Read the [setup and API guide](docs/08-setup-and-api.md) for configuration, migr
 | AI/ML developer and backup backend | Groq integration, structured output validation, and backend foundation support |
 | Dedicated DevOps engineer | CI/CD, environments, secrets, deployment health, and pipeline evidence |
 
-The confirmed team has four people and exactly one dedicated DevOps engineer. Names and individual availability still need to be recorded. Product-owner duty and code review are shared team responsibilities; assign the product-owner duty before consultation.
+The team has four people and one dedicated DevOps engineer. Product ownership and code review are shared team responsibilities.
 
-## Branch Strategy
+## Branch strategy
 
 - `main` contains stable, deployable code.
-- Work is completed in `feature/<issue-number>-<description>` branches.
-- Changes enter `main` through pull requests.
-- Team policy requires passing CI and at least one teammate review before merge.
-- The active GitHub ruleset requires pull requests and blocks force pushes/deletion. It currently enforces neither approving reviews nor required status checks; a repository admin must configure those gates.
+- Develop on a feature branch and submit a pull request. When a branch depends on an unmerged change, review it against that dependency first.
+- Team policy requires passing CI and at least one teammate review before merge. Repository administrators manage the GitHub rules that enforce those gates.
 
-## Local Setup
+## Run locally
 
-Requirements: Node.js 22+ and pnpm 11+.
+Use Node.js 22 and pnpm 11.25.0. From the repository root, run in PowerShell:
 
-```bash
-pnpm install
+```powershell
+pnpm install --frozen-lockfile
 npm --prefix backend ci
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 ```
 
-Copy `.env.example` to `.env.local` and `backend/.env.example` to `backend/.env`, configure a development Supabase project and the private database runtime login, and apply migrations as explained in the [setup guide](docs/08-setup-and-api.md). Start the services in separate terminals:
+1. Set `NEXT_PUBLIC_API_URL=http://localhost:8080` and the public Supabase URL and anon key in `.env.local`.
+2. Set `FRONTEND_URL=http://localhost:3000` in `backend/.env` and configure the same development Supabase project, server-only Storage key, and restricted PostgreSQL runtime login. Set `GROQ_API_KEY` there to try live extraction and analysis.
+3. Apply migrations to the development database using the separate operator connection. Follow the [migration and role setup instructions](docs/08-setup-and-api.md#apply-migrations-deliberately) before running `npm --prefix backend run migrate`. The backend loads its ignored `.env` automatically.
+4. Start the backend with `npm --prefix backend start` and the frontend with `pnpm dev` in separate terminals.
+5. Open [http://localhost:3000](http://localhost:3000). Use the same origin configured in `FRONTEND_URL` and the Supabase Auth redirect allowlist.
 
-```bash
-pnpm dev
-npm --prefix backend start
-```
+Check [backend readiness](http://localhost:8080/ready) before signing in. A ready backend returns HTTP 200 with a connected private database. Use a development account and a synthetic text-based PDF or DOCX. Upload it, open it, choose **Extract resume profile**, review the draft, choose **Confirm this profile**, then select **Analyze resume**. Reopen the resume to check that the saved analysis and cited evidence are still visible. Scanned PDFs without a text layer cannot be extracted.
 
-Open `http://localhost:3000`.
+The optional Vite prototype in `CareerPrepAI/` is separate. Run it with `npm --prefix CareerPrepAI ci` and `npm --prefix CareerPrepAI run dev`.
 
-### Standalone frontend prototype
+## Quality checks
 
-The `CareerPrepAI/` directory preserves the Vite and TypeScript prototype from the `master` branch. It runs independently of the Next.js frontend at the repository root:
-
-```bash
-npm --prefix CareerPrepAI ci
-npm --prefix CareerPrepAI run dev
-```
-
-CI builds both frontends and tests the Railway backend against disposable PostgreSQL.
-
-## Environment Variables
-
-The frontend uses three public settings:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8080
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-key
-```
-
-Copy `backend/.env.example` to `backend/.env` for local backend development. In Railway, configure:
-
-```env
-FRONTEND_URL=https://your-vercel-domain.vercel.app
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_RESUME_BUCKET=resumes
-DATABASE_URL=
-DATABASE_SSL_CA=
-GROQ_API_KEY=
-GROQ_MODEL=openai/gpt-oss-20b
-```
-
-`GROQ_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
-
-`DATABASE_URL` uses a limited runtime login granted the `careerprep_api` privilege role; the separate `MIGRATION_DATABASE_URL` belongs only in the operator environment. The backend loads its ignored `.env` automatically. The committed templates list all current settings; the [setup guide](docs/08-setup-and-api.md) explains their sources and TLS requirements.
-
-## Database Migration
-
-From the full repository checkout, run `npm --prefix backend run migrate` with a separate `MIGRATION_DATABASE_URL`. For manually migrated existing databases, inspect the current schema/history and use the explicit baseline procedure in the setup guide. Applied-file checksums prevent silent migration changes.
-
-The follow-up migration reconciles Supabase Auth, adds display titles, creates a private resume bucket and durable cleanup tasks, and grants a limited runtime privilege role. Legacy profiles are never linked based solely on matching email. The `careerprep` schema stays private and outside the Supabase Data API; all application operations go through Node.
-
-## API Endpoints
-
-### `GET /health`
-
-Returns frontend/backend database connectivity information. When Supabase is configured, the application name is read from PostgreSQL.
-
-### `POST /ai-test`
-
-Requires a verified bearer token and makes a minimal Groq request from the server, with a timeout and per-identity interval limit. The API key is never sent to the browser.
-
-### Resume API
-
-`/api/v1/me` and `/api/v1/resumes` provide authenticated profile resolution and owned upload/list/detail/rename/delete/download. See the [complete API contract](docs/08-setup-and-api.md#api-reference) for requests, envelopes, pagination, errors and cleanup semantics.
-
-## Quality Checks
-
-```bash
+```powershell
 pnpm lint
 pnpm build
 npm --prefix backend run check
 npm --prefix backend test
 ```
 
-GitHub Actions runs these checks, PostgreSQL integration tests and the preserved prototype build on every pull request and push to `main`. The integration suite needs an explicitly disposable local database; CI supplies its own. See [pipeline documentation](docs/07-pipeline-and-environments.md) for stages, measured baseline, environment separation and rollback.
+GitHub Actions also runs database integration against disposable PostgreSQL and builds the prototype. To run the database suite locally, use the [disposable database setup](docs/08-setup-and-api.md#automated-checks).
 
-## Deployment
+The normal tests mock Groq. With a development key set on the backend, run `npm --prefix backend run evaluate:resume-ai` to check the three synthetic fixtures against the live provider. The command reports a pass count for expected skills and grounded achievement evidence. Keep Groq keys, database passwords, Storage service-role keys, and access tokens in ignored local files or hosting secret settings.
 
-### Live Week 1 deployment
+## Release status
 
-- Frontend: https://careerprep-ai-ten.vercel.app
-- Backend: https://careerprep-ai-production.up.railway.app
-
-The deployed frontend connects to the Railway backend, and the backend successfully reads the walking-skeleton configuration from the hosted Supabase database.
-
-### Backend on Railway
-
-1. Create a Railway service from this GitHub repository.
-2. Set the service **Root Directory** to `/backend`.
-3. Add the variables from `backend/.env.example` (Railway supplies `PORT`).
-4. Generate a public Railway domain and verify `/`, `/health`, and `POST /ai-test`.
-
-### Frontend on Vercel
-
-1. Import the same GitHub repository into Vercel using the repository root.
-2. Set `NEXT_PUBLIC_API_URL` to the public Railway domain, without a trailing slash.
-3. Redeploy the `main` branch.
-4. Set Railway's `FRONTEND_URL` to the final Vercel URL.
-5. Verify all four service indicators and the **Test AI connection** button.
-
-Complete the [hosting configuration and two-user rehearsal](docs/07-pipeline-and-environments.md) before calling Sprint 2 deployed. Vercel previews need an intentionally separate API/database environment and exact allowed origins.
-
-## Week 1 Evidence Checklist
-
-- [x] Repository, README, `.gitignore`, `.env.example`, and branch strategy
-- [x] Database schema and migration files
-- [x] Minimal frontend calling backend endpoints
-- [x] Backend endpoint reading from the database
-- [x] Pull-request CI for install, lint, and build
-- [x] All three migrations verified against the hosted Supabase project; limited runtime login and private bucket checked
-- [x] Production deployment available at a live URL
-- [x] Branch protection requires pull requests
-- [ ] Admin-enforced passing CI and one teammate approval
-- [x] GitHub issues created for the Week 1 requirements
-- [ ] Groq verified through the deployed backend — add `GROQ_API_KEY` in Railway and run the authenticated check after deployment
-
-## Sprint scope and evidence
-
-The [official instructions](docs/00-official-course-instructions.md) define Sprint 1 as the deployed walking skeleton and Sprint 2 as owned resume CRUD through the API and UI, including API tests and environment separation. Extraction, analysis, matching and interviews remain later required work. See the [documentation index](docs/README.md) and [sprint delivery record](docs/06-sprint-log.md) for contracts, issues, verified results and outstanding review/deployment gates.
-
-## Security
-
-Never commit API keys, database passwords, access tokens, or other credentials. Use `.env.local`, GitHub Actions secrets, and Vercel environment variables.
+The current branch is a release candidate in development. Earlier deployments and CI results are listed as evidence in the [sprint record](docs/06-sprint-log.md). Use the [cloud setup guide](docs/09-cloud-setup.md) and [release checklist](CHANGELOG.md#release-checklist) to verify a reviewed commit on the deployed frontend and backend before publishing a release tag. The [documentation index](docs/README.md) links the course instructions and other design records.
