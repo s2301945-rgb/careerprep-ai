@@ -4,7 +4,7 @@ Updated October 21, 2026. Companion documents: [pitch](01-project-pitch.md), [da
 
 This is the original design baseline. The implementation inventory below describes the repository before Sprint 2. Track later implementation and verification in the [sprint delivery record](06-sprint-log.md); a PR implementation does not establish hosted deployment or complete later AI workflows.
 
-The current branch adds the Sprint 3 resume-AI slice: real PDF/DOCX text extraction, a user-reviewed profile, evidence-validated analysis and persisted results. The current endpoint/setup contract is in [docs/08-setup-and-api.md](08-setup-and-api.md). Job matching and mock interviews remain future work.
+The current Week 4 branch extends the Sprint 3 resume-AI slice with locally tested saved job matching and text mock interviews. The current endpoint/setup contract is in [docs/08-setup-and-api.md](08-setup-and-api.md). Live Groq verification and hosted acceptance for those additions remain pending.
 
 Unless described as implemented or confirmed, this document is a proposed implementation contract. Numeric product limits, rubrics, and API routes beyond the three current endpoints require implementation and team review.
 

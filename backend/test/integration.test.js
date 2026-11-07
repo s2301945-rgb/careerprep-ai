@@ -5,6 +5,8 @@ import { createApp } from "../src/server.js";
 import { createPool, createRepository } from "../src/database.js";
 import { checksum, runMigrations, verifyMigrationSchema } from "../scripts/migrate.js";
 import { finishResumeDeletion } from "../src/cleanup.js";
+import { validateJobMatch } from "../src/job-match.js";
+import { validateInterviewEvaluation } from "../src/interview-ai.js";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const enabled = Boolean(connectionString);
@@ -108,6 +110,8 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
     "20261016160000_add_walking_skeleton_config.sql",
     "20261022160000_sprint_2_resume_api.sql",
     "20261107090000_sprint_3_resume_ai.sql",
+    "20261108090000_sprint_4_job_match.sql",
+    "20261108100000_sprint_4_interviews.sql",
   ]) {
     assert.equal(await verifyMigrationSchema(pool, filename), true, `${filename} baseline verification`);
   }
@@ -180,12 +184,40 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   };
   storageObjects = new Map();
   storage = makeStorage();
+  let failOneEvaluation = true;
   app = createApp({
     config: { allowedOrigins: ["http://localhost:3000"], supabaseUrl: "", supabaseAnonKey: "" },
     repository,
     auth,
     storage,
     aiProbe: { async check() { return { ai: "not_configured" }; } },
+    jobMatcher: async (description, source) => ({
+      ...validateJobMatch({ requirements: [
+        { requirement: "JavaScript", job_evidence: "JavaScript", status: "met", resume_evidence: "JavaScript and SQL", explanation: "The resume lists JavaScript." },
+        { requirement: "Python", job_evidence: "Python", status: "not_evidenced", resume_evidence: "", explanation: "The resume does not mention Python." },
+      ] }, description, source),
+      model_provider: "test", model_name: "test/model", prompt_version: "test-v1",
+    }),
+    interviewAI: {
+      async generate(count) {
+        return { questions: Array.from({ length: count }, (_, index) => ({
+          question_number: index + 1, question_type: index === 0 ? "technical" : "behavioral",
+          question_text: `Tell me about project example ${index + 1}.`, context_quote: "scheduling tool",
+        })), model_provider: "test", model_name: "test/model", prompt_version: "test-v1" };
+      },
+      async evaluate(question, answer) {
+        if (answer === "retry this answer" && failOneEvaluation) {
+          failOneEvaluation = false;
+          throw Object.assign(new Error("temporary failure"), { code: "AI_PROVIDER_UNAVAILABLE" });
+        }
+        return {
+          result: validateInterviewEvaluation({ relevance: 80, clarity: 70, completeness: 60,
+            examples: 90, technical: question.question_type === "technical" ? 50 : null,
+            feedback: "Good example. Clarify the outcome.", strengths: ["Concrete example"], suggestions: ["Add a result"] }, question.question_type),
+          model_provider: "test", model_name: "test/model", prompt_version: "test-v1",
+        };
+      },
+    },
     logger: { error() {} },
   });
   await new Promise((resolve) => app.listen(0, "127.0.0.1", resolve));
@@ -256,6 +288,72 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   assert.equal(completedAnalysis.overall_score, 70);
   assert.equal(completedAnalysis.rubric_scores.skill_assessments[0].name, "JavaScript");
   assert.equal((await repository.getLatestResumeAnalysis(userA.id, firstResume.id)).id, analysisId);
+
+  const invalidJob = await fetch(`${baseUrl}/api/v1/jobs`, {
+    method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
+    body: JSON.stringify({ description_text: "JavaScript and Python required.", user_id: userB.id }),
+  });
+  assert.equal(invalidJob.status, 422);
+  const jobResponse = await fetch(`${baseUrl}/api/v1/jobs`, {
+    method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
+    body: JSON.stringify({ job_title: "Junior developer", company_name: "Example", description_text: "JavaScript and Python required." }),
+  });
+  assert.equal(jobResponse.status, 201);
+  const savedJob = (await jobResponse.json()).job;
+  assert.equal((await repository.listJobs(userB.id)).length, 0);
+  const crossUserMatch = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/jobs/${savedJob.id}/match`, {
+    method: "POST", headers: authHeaders("user-b"),
+  });
+  assert.equal(crossUserMatch.status, 404);
+  const matchResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/jobs/${savedJob.id}/match`, {
+    method: "POST", headers: authHeaders("user-a"),
+  });
+  assert.equal(matchResponse.status, 201);
+  const savedMatch = (await matchResponse.json()).match;
+  assert.equal(savedMatch.match_score, 50);
+  assert.equal(savedMatch.requirement_assessments.length, 2);
+  assert.equal((await repository.latestJobMatch(userA.id, firstResume.id, savedJob.id)).id, savedMatch.id);
+
+  const interviewResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/interviews`, {
+    method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: savedJob.id }),
+  });
+  assert.equal(interviewResponse.status, 201);
+  const interview = (await interviewResponse.json()).interview;
+  assert.equal(interview.questions.length, 5);
+  assert.equal(interview.status, "in_progress");
+  const otherUsersInterview = await fetch(`${baseUrl}/api/v1/interviews/${interview.id}`, { headers: authHeaders("user-b") });
+  assert.equal(otherUsersInterview.status, 404);
+  for (const [index, question] of interview.questions.entries()) {
+    const answerText = index === 0 ? "retry this answer" : `I built the scheduling tool as example ${index + 1}.`;
+    const endpoint = `${baseUrl}/api/v1/interviews/${interview.id}/questions/${question.id}/answer`;
+    const options = { method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
+      body: JSON.stringify({ answer_text: answerText }) };
+    if (index === 0) {
+      const failed = await fetch(endpoint, options);
+      assert.equal(failed.status, 500);
+      assert.equal((await repository.getInterview(userA.id, interview.id)).questions[0].answer_status, "failed");
+    }
+    const submitted = await fetch(endpoint, options);
+    assert.equal(submitted.status, 201);
+    const current = (await submitted.json()).interview;
+    assert.equal(current.questions[index].answer_status, "evaluated");
+    assert.equal(current.status, index === 4 ? "completed" : "in_progress");
+  }
+  const finished = await repository.getInterview(userA.id, interview.id);
+  assert.equal(finished.overall_score, 75.05);
+  assert.equal((await repository.listInterviews(userA.id, firstResume.id))[0].id, interview.id);
+
+  const staleMatchId = await repository.createJobMatchRun(userA.id, firstResume.id, savedJob.id, confirmedProfile.profile_revision);
+  await pool.query("ALTER TABLE careerprep.job_matches DISABLE TRIGGER trg_job_matches_touch");
+  await pool.query("UPDATE careerprep.job_matches SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = $1", [staleMatchId]);
+  await pool.query("ALTER TABLE careerprep.job_matches ENABLE TRIGGER trg_job_matches_touch");
+  assert.equal((await repository.latestJobMatch(userA.id, firstResume.id, savedJob.id)).status, "failed");
+  const staleInterview = await repository.createInterviewSession(userA.id, firstResume.id, null, 5);
+  await pool.query("ALTER TABLE careerprep.interview_sessions DISABLE TRIGGER trg_interview_sessions_touch");
+  await pool.query("UPDATE careerprep.interview_sessions SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = $1", [staleInterview.id]);
+  await pool.query("ALTER TABLE careerprep.interview_sessions ENABLE TRIGGER trg_interview_sessions_touch");
+  assert.equal((await repository.getInterview(userA.id, staleInterview.id)).status, "failed");
 
   const pageOneResponse = await fetch(`${baseUrl}/api/v1/resumes?limit=1`, { headers: authHeaders("user-a") });
   assert.equal(pageOneResponse.status, 200);

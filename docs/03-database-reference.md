@@ -192,14 +192,14 @@ Analyses, matches, and sessions check that a non-null `completed_at` implies `st
 
 ## 5. Remaining follow-up migration plan
 
-Auth mapping, runtime grants, display titles, storage cleanup, structured resume profiles, and resume-analysis provenance/scores are implemented in the migrations listed above. The following design work remains outside the Week 3 scope:
+Auth mapping, runtime grants, display titles, storage cleanup, structured resume profiles, resume analysis, requirement assessments, and frozen interview source context are implemented in the migrations listed above. The Week 4 migrations are `20261108090000_sprint_4_job_match.sql` and `20261108100000_sprint_4_interviews.sql`. They also grant the restricted API role access to the job and interview tables and sequences. The following refinements remain outside this local implementation:
 
 | Change | Purpose and required treatment |
 | --- | --- |
-| Matching provenance and assessments | Add requirement-by-requirement `requirement_assessments` and a job-description version/source snapshot to `job_matches`. Keep backend-computed aggregate score and profile revision. |
-| Interview provenance and score versioning | Preserve the confirmed profile/job revision on sessions and give answers an explicit rubric version. |
+| Matching provenance | The match now stores requirement-by-requirement assessments and the profile revision. A separate job-description version/source snapshot remains to be designed if editing saved jobs is introduced; jobs are currently create-only. |
+| Interview score versioning | Sessions now freeze resume text, optional job text and profile revision in a private snapshot. Answer rows still need an explicit rubric version if the rubric changes. |
 | Request deduplication | Add operation-specific idempotency keys and unique owner/key constraints for analysis, match, and interview creation. Use conditional state changes for extraction and answer evaluation. Validate key length and retention. |
-| Processing recovery and stronger result invariants | Define run deadlines/stale-run handling, prevent transitions that overwrite terminal results, and constrain required fields/timestamps for successful states. |
+| Stronger processing recovery | Owner reads mark stale runs failed after two minutes, but a background sweeper and stronger database constraints for complete states remain future hardening. |
 
 Suggested new profile relationship:
 

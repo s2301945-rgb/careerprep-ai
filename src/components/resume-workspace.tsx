@@ -21,6 +21,8 @@ import {
   type ResumeRecord,
 } from "@/lib/api";
 import { ServiceDiagnostics } from "@/components/service-diagnostics";
+import { JobMatchPanel } from "@/components/job-match-panel";
+import { InterviewPanel } from "@/components/interview-panel";
 
 type ResumeWorkspaceProps = {
   email: string;
@@ -569,6 +571,8 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
                 An analysis was started. Refresh to check for a result.{" "}
                 <button className="text-button" onClick={retryDetails} type="button">Refresh status</button>
               </div>}
+              {!aiLoading && !aiLoadError && profile?.review_status === "confirmed" && <JobMatchPanel resumeId={id} />}
+              {!aiLoading && !aiLoadError && profile?.review_status === "confirmed" && <InterviewPanel resumeId={id} />}
             </section>
 
             {confirmDelete ? (

@@ -31,7 +31,7 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 - Deadline: November 17, 2026, treated as the final development/demonstration deadline. Exact submission time and any separate preliminary-pitch deadline are not supplied.
 - Team: four people, covering frontend; DevOps; AI/ML plus backup backend; and primary backend. The AI/ML teammate can help with backend foundations and own AI integration. Individual availability and detailed deployment responsibilities remain open.
 - Personal risk: the backend engineer reports low confidence across backend tasks. The proposed mitigation is guided implementation in small working slices, with the backup backend teammate helping on authentication, data access, and initial CRUD.
-- AI: The original plan selected Google Gemini. The current backend connectivity probe has been changed to Groq after the deployed Gemini project rejected free-tier requests. Model-specific structured-output verification for the future analysis workflow remains open.
+- AI: The original plan selected Google Gemini. The backend uses Groq after the deployed Gemini project rejected free-tier requests. Live synthetic resume analysis was verified; matching and interview requests have mocked local tests but still need live-provider verification.
 - Documentation format requested now: Markdown in this directory. The earlier pitch submission format was described as a single PDF or Word document; the official endterm instructions list final project deliverables separately.
 
 ## Repository evidence
@@ -49,11 +49,9 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 
 ## Current readiness
 
-The Sprint 2 branches implement Supabase authentication and owned resume upload, list/detail, rename, private download and deletion through the Node API and Next.js UI. All three migrations are applied to the hosted Supabase project. The [sprint delivery record](06-sprint-log.md) records the PRs, test evidence and remaining review/deployment gates; the production walking skeleton does not yet contain these unmerged changes.
+The stacked Sprint 2–4 feature branches implement Supabase authentication, private resume CRUD, PDF/DOCX text extraction, reviewed profile and AI analysis, saved job comparison, and text mock interviews through the Node API and Next.js UI. The [sprint delivery record](06-sprint-log.md) distinguishes local checks from hosted deployment. Week 4 matching and interview migrations have passed on disposable local PostgreSQL, but have not been applied to the hosted Supabase project. The production walking skeleton does not yet contain these unmerged changes.
 
-Document text extraction, structured analysis, resume feedback, job matching and interviews remain later work. PDF/DOCX container validation does not perform text extraction. The public `app_config` read and connectivity prompt do not satisfy the non-trivial AI requirement by themselves.
-
-The owner's earlier Gemini key test and the October 22 `not_configured` deployment check remain historical evidence in the [sprint delivery record](06-sprint-log.md). A later deployed Gemini request returned a provider permission error, which prompted the Groq probe migration. A successful Groq request on Railway still requires a Groq API key and deployment verification.
+The owner's earlier Gemini key test and the October 22 `not_configured` deployment check remain historical evidence in the [sprint delivery record](06-sprint-log.md). A later deployed Gemini request returned a provider permission error, which prompted the Groq probe migration. A live synthetic Groq resume evaluation later passed locally; matching and interviews still require live-provider checks and hosted acceptance.
 
 The original design/discovery documents were prepared without invoking production endpoints, inspecting credentials, changing application code, applying migrations, or running automated application checks. Later implementation and verification are tracked separately in the sprint delivery record. The installed skill locations and project skill directories searched did not contain `grill-me`; the interview is recorded in [the decision log](04-discovery-and-decisions.md).
 

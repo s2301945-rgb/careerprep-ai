@@ -1,6 +1,6 @@
 # CareerPrep AI
 
-CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. The app supports sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, and AI analysis that cites the resume. Job-description matching and text mock interviews are planned in the [technical design](docs/02-technical-design.md).
+CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. The current feature branch includes sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, AI resume analysis, saved job comparisons, and five-question text mock interviews. Job matching and interviews have local automated coverage but have not been verified against live Groq or a hosted signed-in deployment.
 
 ## How it works
 
@@ -50,7 +50,7 @@ if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env
 4. Start the backend with `npm --prefix backend start` and the frontend with `pnpm dev` in separate terminals.
 5. Open [http://localhost:3000](http://localhost:3000). Use the same origin configured in `FRONTEND_URL` and the Supabase Auth redirect allowlist.
 
-Check [backend readiness](http://localhost:8080/ready) before signing in. A ready backend returns HTTP 200 with a connected private database. Use a development account and a synthetic text-based PDF or DOCX. Upload it, open it, choose **Extract resume profile**, review the draft, choose **Confirm this profile**, then select **Analyze resume**. Reopen the resume to check that the saved analysis and cited evidence are still visible. Scanned PDFs without a text layer cannot be extracted.
+Check [backend readiness](http://localhost:8080/ready) before signing in. A ready backend returns HTTP 200 with a connected private database. Use a development account and a synthetic text-based PDF or DOCX. Upload it, open it, choose **Extract resume profile**, review the draft, choose **Confirm this profile**, then select **Analyze resume**. In the same resume view, save a job description and compare it, then start a five-question mock interview with or without the saved job. Reopen the resume to check saved comparisons and interview feedback. Scanned PDFs without a text layer cannot be extracted. Apply both Sprint 4 migrations before starting this version of the backend.
 
 The optional Vite prototype in `CareerPrepAI/` is separate. Run it with `npm --prefix CareerPrepAI ci` and `npm --prefix CareerPrepAI run dev`.
 

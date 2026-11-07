@@ -8,8 +8,8 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "check": "node --check src/server.js && node --check src/ai.js && node --check src/resume-ai.js && node --check src/resume-ai-guard.js && node --check src/database.js && node --check src/multipart.js && node --check src/documents.js && node --check scripts/migrate.js",
-    "test": "node --test test/unit/ai.test.js test/unit/resume-ai.test.js test/unit/api.test.js test/unit/auth.test.js test/unit/cleanup.test.js test/unit/documents.test.js",
+    "check": "node --check src/server.js && node --check src/ai.js && node --check src/resume-ai.js && node --check src/job-match.js && node --check src/interview-ai.js && node --check src/resume-ai-guard.js && node --check src/database.js && node --check src/multipart.js && node --check src/documents.js && node --check scripts/migrate.js",
+    "test": "node --test test/unit/ai.test.js test/unit/resume-ai.test.js test/unit/job-match.test.js test/unit/interview-ai.test.js test/unit/api.test.js test/unit/auth.test.js test/unit/cleanup.test.js test/unit/documents.test.js",
     "test:integration": "node --test test/integration.test.js",
     "evaluate:resume-ai": "node scripts/evaluate-resume-ai.js",
     "migrate": "node scripts/migrate.js",

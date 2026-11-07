@@ -58,6 +58,53 @@ export type ResumeAnalysis = {
   completed_at: string | null;
 };
 
+export type SavedJob = {
+  id: string;
+  job_title: string | null;
+  company_name: string | null;
+  description_text: string;
+  created_at: string;
+};
+
+export type JobMatch = {
+  id: string;
+  status: "processing" | "completed" | "failed";
+  match_score: number | null;
+  requirement_assessments: Array<{
+    requirement: string;
+    job_evidence: string;
+    status: "met" | "partial" | "not_evidenced" | "unknown";
+    resume_evidence: string;
+    explanation: string;
+  }>;
+  explanation: string | null;
+  error_code?: string | null;
+};
+
+export type InterviewQuestion = {
+  id: string;
+  question_number: number;
+  question_type: "general" | "technical" | "behavioral" | "situational";
+  question_text: string;
+  context_quote: string;
+  answer_text: string | null;
+  answer_status: "evaluating" | "evaluated" | "failed" | null;
+  answer_score: number | null;
+  feedback: string | null;
+  answer_strengths: string[] | null;
+  answer_suggestions: string[] | null;
+};
+
+export type Interview = {
+  id: string;
+  status: "pending" | "in_progress" | "completed" | "failed" | "abandoned";
+  question_count: number;
+  overall_score: number | null;
+  summary: string | null;
+  created_at: string;
+  questions: InterviewQuestion[];
+};
+
 export type AppProfile = {
   id: string;
   email: string;
@@ -248,6 +295,38 @@ export function runResumeAnalysis(id: string) {
 
 export function getResumeAnalysis(id: string) {
   return requestJson<{ analysis: ResumeAnalysis }>(`/api/v1/resumes/${encodeURIComponent(id)}/analysis`);
+}
+
+export function listJobs() {
+  return requestJson<{ jobs: SavedJob[] }>("/api/v1/jobs");
+}
+
+export function saveJob(input: { job_title: string; company_name: string; description_text: string }) {
+  return requestJson<{ job: SavedJob }>("/api/v1/jobs", { method: "POST", json: input });
+}
+
+export function getJobMatch(resumeId: string, jobId: string) {
+  return requestJson<{ match: JobMatch | null }>(`/api/v1/resumes/${encodeURIComponent(resumeId)}/jobs/${encodeURIComponent(jobId)}/match`);
+}
+
+export function runJobMatch(resumeId: string, jobId: string) {
+  return requestJson<{ match: JobMatch }>(`/api/v1/resumes/${encodeURIComponent(resumeId)}/jobs/${encodeURIComponent(jobId)}/match`, { method: "POST" });
+}
+
+export function listInterviews(resumeId: string) {
+  return requestJson<{ interviews: Array<Pick<Interview, "id" | "status" | "question_count" | "overall_score" | "summary" | "created_at">> }>(`/api/v1/resumes/${encodeURIComponent(resumeId)}/interviews`);
+}
+
+export function startInterview(resumeId: string, jobId: string | null) {
+  return requestJson<{ interview: Interview }>(`/api/v1/resumes/${encodeURIComponent(resumeId)}/interviews`, { method: "POST", json: { job_id: jobId } });
+}
+
+export function getInterview(id: string) {
+  return requestJson<{ interview: Interview }>(`/api/v1/interviews/${encodeURIComponent(id)}`);
+}
+
+export function submitInterviewAnswer(interviewId: string, questionId: string, answerText: string) {
+  return requestJson<{ interview: Interview }>(`/api/v1/interviews/${encodeURIComponent(interviewId)}/questions/${encodeURIComponent(questionId)}/answer`, { method: "POST", json: { answer_text: answerText } });
 }
 
 export async function downloadResume(id: string) {

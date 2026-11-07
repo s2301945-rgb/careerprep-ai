@@ -414,3 +414,18 @@ button, a, input { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.job-match-panel { border-top: 1px solid #dce5eb; margin-top: 1.5rem; padding-top: 1.5rem; }
+.job-match-form, .job-match-saved { display: grid; gap: .75rem; margin-top: 1rem; }
+.job-match-form label, .job-match-saved label { display: grid; gap: .35rem; font-weight: 600; }
+.job-match-form input, .job-match-form textarea, .job-match-saved select { width: 100%; min-width: 0; border: 1px solid #bdcbd3; border-radius: .5rem; padding: .65rem; background: white; color: #18343d; font: inherit; }
+.job-match-result { margin-top: 1rem; padding: 1rem; border-radius: .75rem; background: #f2f8f7; }
+.job-match-result ul { display: grid; gap: .85rem; padding-left: 1.25rem; }
+.job-match-result small { display: block; margin-top: .2rem; }
+.interview-panel { border-top: 1px solid #dce5eb; margin-top: 1.5rem; padding-top: 1.5rem; }
+.interview-start, .interview-history { display: grid; gap: .75rem; margin-top: 1rem; }
+.interview-start label, .interview-history label, .interview-question label { display: grid; gap: .35rem; font-weight: 600; }
+.interview-start select, .interview-history select, .interview-question textarea { width: 100%; min-width: 0; border: 1px solid #bdcbd3; border-radius: .5rem; padding: .65rem; background: white; color: #18343d; font: inherit; }
+.interview-question { margin-top: 1rem; padding: 1rem; border: 1px solid #dce5eb; border-radius: .75rem; }
+.interview-question h4 { margin: .35rem 0; }
+.interview-question form { display: grid; gap: .75rem; margin-top: .75rem; }
+.interview-feedback { margin-top: .75rem; }

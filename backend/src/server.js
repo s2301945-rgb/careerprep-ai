@@ -9,6 +9,8 @@ import { createPool, createRepository } from "./database.js";
 import { createSupabaseStorage } from "./storage.js";
 import { createGroqProbe, createProbeRateLimiter } from "./ai.js";
 import { createResumeAiGuard } from "./resume-ai-guard.js";
+import { createJobMatcher } from "./job-match.js";
+import { createInterviewAI } from "./interview-ai.js";
 import {
   createResumeAI,
   validateResumeProfile,
@@ -161,6 +163,14 @@ function validateDisplayTitle(value) {
   return title;
 }
 
+function validateJobText(value, label, maximum, optional = false) {
+  if (optional && (value === null || value === undefined || value === "")) return null;
+  if (typeof value !== "string" || !value.trim() || Array.from(value).length > maximum || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) {
+    throw new ApiError(422, "VALIDATION_FAILED", `${label} must be 1 to ${maximum} characters.`);
+  }
+  return value.trim();
+}
+
 function defaultDisplayTitle(filename) {
   const extension = filename.lastIndexOf(".");
   const title = extension > 0 ? filename.slice(0, extension) : filename;
@@ -244,6 +254,8 @@ export function createApp({
   storage = null,
   aiProbe = null,
   resumeAI = null,
+  jobMatcher = null,
+  interviewAI = null,
   rateLimiter = createProbeRateLimiter(),
   resumeAiGuard = createResumeAiGuard(),
   fetchImpl = fetch,
@@ -261,6 +273,16 @@ export function createApp({
     fetchImpl,
   });
   const resumeAiService = resumeAI ?? createResumeAI({
+    apiKey: config.groqApiKey,
+    model: config.groqModel,
+    fetchImpl,
+  });
+  const matchJob = jobMatcher ?? createJobMatcher({
+    apiKey: config.groqApiKey,
+    model: config.groqModel,
+    fetchImpl,
+  });
+  const interviewService = interviewAI ?? createInterviewAI({
     apiKey: config.groqApiKey,
     model: config.groqModel,
     fetchImpl,
@@ -312,6 +334,143 @@ export function createApp({
         const user = await requireRepository(repository).resolveUser(identity);
         sendJson(request, response, 200, { user }, corsHeaders, requestId);
         return;
+      }
+
+      if (url.pathname === "/api/v1/jobs") {
+        const identity = await requireIdentity(request, authVerifier);
+        const repo = requireRepository(repository);
+        const user = await repo.resolveUser(identity);
+        if (request.method === "GET") {
+          sendJson(request, response, 200, { jobs: await repo.listJobs(user.id) }, corsHeaders, requestId);
+          return;
+        }
+        if (request.method === "POST") {
+          const body = await readJsonBody(request);
+          assertAllowedKeys(body, ["job_title", "company_name", "description_text"], "Only job title, company name and description may be saved.");
+          const job = await repo.createJob(user.id, {
+            title: validateJobText(body.job_title, "job_title", 180, true),
+            company: validateJobText(body.company_name, "company_name", 180, true),
+            description: validateJobText(body.description_text, "description_text", 30000),
+          });
+          sendJson(request, response, 201, { job }, corsHeaders, requestId);
+          return;
+        }
+        throw new ApiError(405, "METHOD_NOT_ALLOWED", "This method is not supported for jobs.");
+      }
+
+      const jobMatchRoute = /^\/api\/v1\/resumes\/([^/]+)\/jobs\/([^/]+)\/match$/.exec(url.pathname);
+      if (jobMatchRoute) {
+        const identity = await requireIdentity(request, authVerifier);
+        const repo = requireRepository(repository);
+        const user = await repo.resolveUser(identity);
+        const resumeId = parseIdentifier(jobMatchRoute[1]);
+        const jobId = parseIdentifier(jobMatchRoute[2]);
+        const job = await repo.getJob(user.id, jobId);
+        const resume = await repo.findResume(user.id, resumeId);
+        if (!job || !resume) throw new ApiError(404, "RESOURCE_NOT_FOUND", "The requested resume or job was not found.");
+        if (request.method === "GET") {
+          sendJson(request, response, 200, { match: await repo.latestJobMatch(user.id, resumeId, jobId) }, corsHeaders, requestId);
+          return;
+        }
+        if (request.method === "POST") {
+          const context = await repo.getConfirmedResumeContext(user.id, resumeId);
+          if (!context || context.profile.review_status !== "confirmed" || !context.sourceText) {
+            throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Extract and confirm the resume profile before matching a job.");
+          }
+          const releaseAiSlot = resumeAiGuard.start(user.id);
+          let matchId;
+          try {
+            matchId = await repo.createJobMatchRun(user.id, resumeId, jobId, context.profile.profile_revision);
+            if (!matchId) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "The resume or job changed. Refresh and try again.");
+            const result = await matchJob(job.description_text, context.sourceText);
+            const saved = await repo.completeJobMatch(user.id, matchId, result);
+            if (!saved) throw new ApiError(409, "MATCH_STATE_CHANGED", "The comparison could not be saved. Try again.", true);
+            sendJson(request, response, 201, { match: saved }, corsHeaders, requestId);
+            return;
+          } catch (error) {
+            if (matchId) await repo.failJobMatch(user.id, matchId, /^[A-Z0-9_-]{1,100}$/.test(error?.code ?? "") ? error.code : "AI_FAILED").catch(() => {});
+            throw error;
+          } finally {
+            releaseAiSlot();
+          }
+        }
+        throw new ApiError(405, "METHOD_NOT_ALLOWED", "This method is not supported for job matching.");
+      }
+
+      const interviewListRoute = /^\/api\/v1\/resumes\/([^/]+)\/interviews$/.exec(url.pathname);
+      if (interviewListRoute) {
+        const identity = await requireIdentity(request, authVerifier);
+        const repo = requireRepository(repository);
+        const user = await repo.resolveUser(identity);
+        const resumeId = parseIdentifier(interviewListRoute[1]);
+        if (!await repo.findResume(user.id, resumeId)) throw new ApiError(404, "RESUME_NOT_FOUND", "The requested resume was not found.");
+        if (request.method === "GET") {
+          sendJson(request, response, 200, { interviews: await repo.listInterviews(user.id, resumeId) }, corsHeaders, requestId);
+          return;
+        }
+        if (request.method === "POST") {
+          const body = await readJsonBody(request);
+          assertAllowedKeys(body, ["job_id"], "Only a saved job ID may be supplied.");
+          const jobId = body.job_id === null || body.job_id === undefined ? null : parseIdentifier(String(body.job_id));
+          if (jobId && !await repo.getJob(user.id, jobId)) throw new ApiError(404, "RESOURCE_NOT_FOUND", "The selected job was not found.");
+          const releaseAiSlot = resumeAiGuard.start(user.id);
+          let session;
+          try {
+            session = await repo.createInterviewSession(user.id, resumeId, jobId, 5);
+            if (!session) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Confirm an extracted resume profile before starting an interview.");
+            const generated = await interviewService.generate(5, session.source_snapshot.resume_text, session.source_snapshot.job_text);
+            if (!await repo.saveInterviewQuestions(user.id, session.id, generated.questions, generated)) {
+              throw new ApiError(409, "INTERVIEW_STATE_CHANGED", "The interview could not be saved. Try again.", true);
+            }
+            sendJson(request, response, 201, { interview: await repo.getInterview(user.id, session.id) }, corsHeaders, requestId);
+            return;
+          } catch (error) {
+            if (session) await repo.failInterviewSession(user.id, session.id).catch(() => {});
+            throw error;
+          } finally { releaseAiSlot(); }
+        }
+        throw new ApiError(405, "METHOD_NOT_ALLOWED", "This method is not supported for interviews.");
+      }
+
+      const interviewRoute = /^\/api\/v1\/interviews\/([^/]+)(?:\/questions\/([^/]+)\/answer)?$/.exec(url.pathname);
+      if (interviewRoute) {
+        const identity = await requireIdentity(request, authVerifier);
+        const repo = requireRepository(repository);
+        const user = await repo.resolveUser(identity);
+        const sessionId = parseIdentifier(interviewRoute[1]);
+        const interview = await repo.getInterview(user.id, sessionId);
+        if (!interview) throw new ApiError(404, "INTERVIEW_NOT_FOUND", "The requested interview was not found.");
+        if (!interviewRoute[2] && request.method === "GET") {
+          sendJson(request, response, 200, { interview }, corsHeaders, requestId);
+          return;
+        }
+        if (interviewRoute[2] && request.method === "POST") {
+          const questionId = parseIdentifier(interviewRoute[2]);
+          const question = interview.questions.find((entry) => entry.id === questionId);
+          if (!question) throw new ApiError(404, "QUESTION_NOT_FOUND", "The interview question was not found.");
+          const body = await readJsonBody(request);
+          assertAllowedKeys(body, ["answer_text"], "Only answer_text may be submitted.");
+          const answerText = validateJobText(body.answer_text, "answer_text", 30000);
+          const releaseAiSlot = resumeAiGuard.start(user.id);
+          let answerId;
+          try {
+            answerId = await repo.beginInterviewAnswer(user.id, sessionId, questionId, answerText);
+            if (!answerId) throw new ApiError(409, "ANSWER_ALREADY_SUBMITTED", "This answer is already submitted. A failed evaluation can be retried with the same text.");
+            const source = await repo.getInterviewContext(user.id, sessionId);
+            if (!source) throw new ApiError(409, "INTERVIEW_STATE_CHANGED", "The interview changed. Refresh and try again.");
+            const evaluated = await interviewService.evaluate(question, answerText, source);
+            if (!await repo.completeInterviewAnswer(user.id, sessionId, questionId, answerId, evaluated)) {
+              throw new ApiError(409, "INTERVIEW_STATE_CHANGED", "The answer could not be saved. Refresh and try again.", true);
+            }
+            sendJson(request, response, 201, { interview: await repo.getInterview(user.id, sessionId) }, corsHeaders, requestId);
+            return;
+          } catch (error) {
+            if (answerId) await repo.failInterviewAnswer(user.id, sessionId, questionId, answerId,
+              /^[A-Z0-9_-]{1,100}$/.test(error?.code ?? "") ? error.code : "AI_FAILED").catch(() => {});
+            throw error;
+          } finally { releaseAiSlot(); }
+        }
+        throw new ApiError(405, "METHOD_NOT_ALLOWED", "This method is not supported for the interview route.");
       }
 
       const aiResumeMatch = /^\/api\/v1\/resumes\/([^/]+)\/(extract|profile|analysis)$/.exec(url.pathname);

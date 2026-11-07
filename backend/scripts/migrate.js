@@ -236,6 +236,40 @@ export async function verifyMigrationSchema(pool, filename) {
     return result.rows[0]?.complete === true;
   }
 
+  if (filename === "20261108090000_sprint_4_job_match.sql") {
+    const result = await pool.query(`
+      SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'job_matches'
+            AND column_name = 'requirement_assessments' AND data_type = 'jsonb'
+        )
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'job_matches'
+            AND column_name = 'profile_revision' AND data_type = 'integer'
+        )
+        AND has_table_privilege('careerprep_api', 'careerprep.job_descriptions', 'INSERT')
+        AND has_table_privilege('careerprep_api', 'careerprep.job_matches', 'UPDATE')
+        AND has_sequence_privilege('careerprep_api', 'careerprep.job_matches_id_seq', 'USAGE') AS complete
+    `);
+    return result.rows[0]?.complete === true;
+  }
+
+  if (filename === "20261108100000_sprint_4_interviews.sql") {
+    const result = await pool.query(`
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'interview_sessions'
+            AND column_name = 'source_snapshot' AND data_type = 'jsonb')
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'interview_questions'
+            AND column_name = 'context_quote' AND data_type = 'text')
+        AND has_table_privilege('careerprep_api', 'careerprep.interview_sessions', 'INSERT')
+        AND has_table_privilege('careerprep_api', 'careerprep.interview_questions', 'INSERT')
+        AND has_table_privilege('careerprep_api', 'careerprep.interview_answers', 'UPDATE') AS complete
+    `);
+    return result.rows[0]?.complete === true;
+  }
+
   return false;
 }
 
@@ -257,6 +291,18 @@ async function hasMigrationFootprint(pool, filename) {
             WHERE table_schema = 'careerprep' AND table_name = 'resume_analyses'
               AND column_name = 'rubric_scores'
           ) AS present
+    `,
+    "20261108090000_sprint_4_job_match.sql": `
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'careerprep' AND table_name = 'job_matches'
+          AND column_name = 'requirement_assessments'
+      ) AS present
+    `,
+    "20261108100000_sprint_4_interviews.sql": `
+      SELECT EXISTS (SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'careerprep' AND table_name = 'interview_sessions'
+          AND column_name = 'source_snapshot') AS present
     `,
   }[filename] ?? "SELECT FALSE AS present");
   return result.rows[0]?.present === true;
