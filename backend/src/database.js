@@ -78,6 +78,45 @@ function mapResume(row) {
   };
 }
 
+function mapProfile(row) {
+  return {
+    resume_id: String(row.resume_id),
+    summary: row.summary,
+    skills: row.skills,
+    education: row.education,
+    projects: row.projects,
+    experience: row.experience,
+    schema_version: row.schema_version,
+    profile_revision: Number(row.profile_revision),
+    review_status: row.review_status,
+    confirmed_at: row.confirmed_at ? iso(row.confirmed_at) : null,
+    model_provider: row.model_provider,
+    model_name: row.model_name,
+    prompt_version: row.prompt_version,
+    updated_at: iso(row.updated_at),
+  };
+}
+
+function mapAnalysis(row) {
+  return {
+    id: String(row.id),
+    status: row.status,
+    overall_score: row.overall_score === null ? null : Number(row.overall_score),
+    summary: row.summary,
+    strengths: row.strengths,
+    weaknesses: row.weaknesses,
+    missing_sections: row.missing_sections,
+    recommendations: row.recommendations,
+    rubric_scores: row.rubric_scores,
+    rubric_version: row.rubric_version,
+    model_provider: row.model_provider,
+    model_name: row.model_name,
+    prompt_version: row.prompt_version,
+    created_at: iso(row.created_at),
+    completed_at: row.completed_at ? iso(row.completed_at) : null,
+  };
+}
+
 const RESUME_COLUMNS = `
   id::text AS id,
   display_title,
@@ -224,6 +263,175 @@ export function createRepository(pool) {
         [ownerUserId, resumeId, displayTitle],
       );
       return result.rows[0] ? mapResume(result.rows[0]) : null;
+    },
+
+    async saveExtractedProfile(ownerUserId, resumeId, { sourceText, profile, schemaVersion, provider, model, promptVersion }) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const resumeResult = await client.query(
+          `UPDATE careerprep.resumes
+           SET extracted_text = $3, extraction_status = 'completed', extraction_error = NULL, extracted_at = NOW()
+           WHERE user_id = $1 AND id = $2
+           RETURNING id::text AS id`,
+          [ownerUserId, resumeId, sourceText],
+        );
+        if (!resumeResult.rows[0]) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        const result = await client.query(
+          `INSERT INTO careerprep.resume_profiles (
+             resume_id, user_id, summary, skills, education, experience, projects, schema_version,
+             profile_revision, review_status, confirmed_at, model_provider, model_name, prompt_version
+           ) VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, 1, 'draft', NULL, $9, $10, $11)
+           ON CONFLICT (resume_id) DO UPDATE SET
+             user_id = EXCLUDED.user_id, summary = EXCLUDED.summary,
+             skills = EXCLUDED.skills, education = EXCLUDED.education, experience = EXCLUDED.experience,
+             projects = EXCLUDED.projects,
+             schema_version = EXCLUDED.schema_version,
+             profile_revision = careerprep.resume_profiles.profile_revision + 1,
+             review_status = 'draft', confirmed_at = NULL,
+             model_provider = EXCLUDED.model_provider, model_name = EXCLUDED.model_name,
+             prompt_version = EXCLUDED.prompt_version
+           RETURNING resume_id::text AS resume_id, summary, skills, education, experience, projects,
+                     schema_version, profile_revision, review_status, confirmed_at,
+                     model_provider, model_name, prompt_version, updated_at`,
+          [resumeId, ownerUserId, profile.summary, JSON.stringify(profile.skills), JSON.stringify(profile.education),
+            JSON.stringify(profile.experience), JSON.stringify(profile.projects), schemaVersion, provider, model, promptVersion],
+        );
+        await client.query("COMMIT");
+        return mapProfile(result.rows[0]);
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    async storeResumeText(ownerUserId, resumeId, sourceText) {
+      const result = await pool.query(
+        `UPDATE careerprep.resumes
+         SET extracted_text = $3, extraction_status = 'completed', extraction_error = NULL, extracted_at = NOW()
+         WHERE user_id = $1 AND id = $2
+         RETURNING id::text AS id`,
+        [ownerUserId, resumeId, sourceText],
+      );
+      return Boolean(result.rows[0]);
+    },
+
+    async failResumeExtraction(ownerUserId, resumeId, errorCode) {
+      const result = await pool.query(
+        `UPDATE careerprep.resumes
+         SET extraction_status = 'failed', extraction_error = $3, extracted_at = NULL
+         WHERE user_id = $1 AND id = $2
+         RETURNING id::text AS id`,
+        [ownerUserId, resumeId, errorCode],
+      );
+      return Boolean(result.rows[0]);
+    },
+
+    async getResumeProfile(ownerUserId, resumeId) {
+      const result = await pool.query(
+        `SELECT resume_id::text AS resume_id, summary, skills, education, experience, projects,
+                schema_version, profile_revision, review_status, confirmed_at,
+                model_provider, model_name, prompt_version, updated_at
+         FROM careerprep.resume_profiles WHERE user_id = $1 AND resume_id = $2`,
+        [ownerUserId, resumeId],
+      );
+      return result.rows[0] ? mapProfile(result.rows[0]) : null;
+    },
+
+    async confirmResumeProfile(ownerUserId, resumeId, profile) {
+      const result = await pool.query(
+        `UPDATE careerprep.resume_profiles SET
+           profile_revision = profile_revision + CASE
+             WHEN summary IS DISTINCT FROM $3
+               OR skills IS DISTINCT FROM $4::jsonb
+               OR education IS DISTINCT FROM $5::jsonb
+               OR experience IS DISTINCT FROM $6::jsonb
+               OR projects IS DISTINCT FROM $7::jsonb THEN 1 ELSE 0 END,
+           summary = $3, skills = $4::jsonb, education = $5::jsonb, experience = $6::jsonb,
+           projects = $7::jsonb,
+           review_status = 'confirmed', confirmed_at = NOW()
+         WHERE user_id = $1 AND resume_id = $2
+         RETURNING resume_id::text AS resume_id, summary, skills, education, experience, projects,
+                   schema_version, profile_revision, review_status, confirmed_at,
+                   model_provider, model_name, prompt_version, updated_at`,
+        [ownerUserId, resumeId, profile.summary, JSON.stringify(profile.skills),
+          JSON.stringify(profile.education), JSON.stringify(profile.experience), JSON.stringify(profile.projects)],
+      );
+      return result.rows[0] ? mapProfile(result.rows[0]) : null;
+    },
+
+    async getConfirmedResumeContext(ownerUserId, resumeId) {
+      const result = await pool.query(
+        `SELECT r.extracted_text,
+                p.resume_id::text AS resume_id, p.summary, p.skills, p.education, p.experience, p.projects,
+                p.schema_version, p.profile_revision, p.review_status, p.confirmed_at,
+                p.model_provider, p.model_name, p.prompt_version, p.updated_at
+         FROM careerprep.resumes r
+         JOIN careerprep.resume_profiles p ON p.resume_id = r.id AND p.user_id = r.user_id
+         WHERE r.user_id = $1 AND r.id = $2`,
+        [ownerUserId, resumeId],
+      );
+      const row = result.rows[0];
+      return row ? { sourceText: row.extracted_text, profile: mapProfile(row) } : null;
+    },
+
+    async createResumeAnalysisRun(ownerUserId, resumeId, snapshot) {
+      const result = await pool.query(
+        `INSERT INTO careerprep.resume_analyses (user_id, resume_id, status, source_snapshot)
+         SELECT $1, r.id, 'processing', $3::jsonb
+         FROM careerprep.resumes r
+         JOIN careerprep.resume_profiles p ON p.resume_id = r.id AND p.user_id = r.user_id
+         WHERE r.user_id = $1 AND r.id = $2 AND p.review_status = 'confirmed'
+         RETURNING id::text AS id`,
+        [ownerUserId, resumeId, JSON.stringify(snapshot)],
+      );
+      return result.rows[0]?.id ?? null;
+    },
+
+    async completeResumeAnalysis(ownerUserId, resumeId, analysisId, { result, provider, model, promptVersion, rubricVersion }) {
+      const scores = { ...result.rubric_scores, skill_assessments: result.skill_assessments };
+      const updated = await pool.query(
+        `UPDATE careerprep.resume_analyses SET status = 'completed', overall_score = $4,
+           summary = $5, strengths = $6::jsonb, weaknesses = $7::jsonb,
+           missing_sections = $8::jsonb, recommendations = $9::jsonb,
+           rubric_scores = $10::jsonb, rubric_version = $11,
+           model_provider = $12, model_name = $13, prompt_version = $14,
+           error_code = NULL, completed_at = NOW()
+         WHERE user_id = $1 AND resume_id = $2 AND id = $3 AND status = 'processing'
+         RETURNING id::text AS id, status, overall_score::text AS overall_score, summary,
+                   strengths, weaknesses, missing_sections, recommendations, rubric_scores,
+                   rubric_version, model_provider, model_name, prompt_version, created_at, completed_at`,
+        [ownerUserId, resumeId, analysisId, result.overall_score, result.summary,
+          JSON.stringify(result.strengths), JSON.stringify(result.weaknesses),
+          JSON.stringify(result.missing_sections), JSON.stringify(result.recommendations),
+          JSON.stringify(scores), rubricVersion, provider, model, promptVersion],
+      );
+      return updated.rows[0] ? mapAnalysis(updated.rows[0]) : null;
+    },
+
+    async failResumeAnalysis(ownerUserId, resumeId, analysisId, errorCode) {
+      await pool.query(
+        `UPDATE careerprep.resume_analyses SET status = 'failed', error_code = $4
+         WHERE user_id = $1 AND resume_id = $2 AND id = $3 AND status = 'processing'`,
+        [ownerUserId, resumeId, analysisId, errorCode],
+      );
+    },
+
+    async getLatestResumeAnalysis(ownerUserId, resumeId) {
+      const result = await pool.query(
+        `SELECT id::text AS id, status, overall_score::text AS overall_score, summary,
+                strengths, weaknesses, missing_sections, recommendations, rubric_scores,
+                rubric_version, model_provider, model_name, prompt_version, created_at, completed_at
+         FROM careerprep.resume_analyses WHERE user_id = $1 AND resume_id = $2
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [ownerUserId, resumeId],
+      );
+      return result.rows[0] ? mapAnalysis(result.rows[0]) : null;
     },
 
     async armUploadCleanup(ownerUserId, storagePath) {
@@ -438,7 +646,9 @@ export function createRepository(pool) {
         SELECT
           (SELECT auth_user_id FROM careerprep.users LIMIT 0),
           (SELECT display_title FROM careerprep.resumes LIMIT 0),
-          (SELECT id FROM careerprep.storage_cleanup_tasks LIMIT 0)
+          (SELECT id FROM careerprep.storage_cleanup_tasks LIMIT 0),
+          (SELECT resume_id FROM careerprep.resume_profiles LIMIT 0),
+          (SELECT rubric_scores FROM careerprep.resume_analyses LIMIT 0)
       `);
       return true;
     },

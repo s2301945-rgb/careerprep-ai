@@ -4,6 +4,8 @@ Updated October 21, 2026. Companion documents: [pitch](01-project-pitch.md), [da
 
 This is the original design baseline. The implementation inventory below describes the repository before Sprint 2. Track later implementation and verification in the [sprint delivery record](06-sprint-log.md); a PR implementation does not establish hosted deployment or complete later AI workflows.
 
+The current branch adds the Sprint 3 resume-AI slice: real PDF/DOCX text extraction, a user-reviewed profile, evidence-validated analysis and persisted results. The current endpoint/setup contract is in [docs/08-setup-and-api.md](08-setup-and-api.md). Job matching and mock interviews remain future work.
+
 Unless described as implemented or confirmed, this document is a proposed implementation contract. Numeric product limits, rubrics, and API routes beyond the three current endpoints require implementation and team review.
 
 ## 1. Product scope and acceptance
@@ -86,7 +88,7 @@ Use a dedicated PostgreSQL runtime role with only the required schema/table/sequ
 5. Query each resource with the resolved application `user_id`. Traverse question/answer ownership through its session.
 6. Return an owned-resource 404 for inaccessible IDs and 401 for invalid authentication. Composite database foreign keys provide an additional ownership consistency check.
 
-The current CORS response allows only `GET,POST,OPTIONS` and `Content-Type`. The new API requires approved origins, `PATCH`, `PUT`, `DELETE`, `Authorization`, and the proposed `Idempotency-Key` header. CORS configuration does not replace authentication. Authentication SDK selection, browser session persistence, sign-out, refresh behavior, and any cookie/CSRF strategy must be settled during the authentication slice.
+The current API CORS response allows `GET,POST,PATCH,DELETE,OPTIONS`, `Authorization` and `Content-Type` for exact configured origins. CORS configuration does not replace authentication. Authentication and browser session behavior are implemented for the resume workspace; interview-specific request contracts remain to be settled.
 
 For storage, check ownership in Node before using privileged credentials. A service role bypasses Storage RLS and must remain server-only; see [Supabase Storage access control](https://supabase.com/docs/guides/storage/security/access-control). Prefer backend-mediated file access for the initial release. Never make the resume bucket public. If signed download links are introduced, issue short-lived links only after an ownership check.
 
@@ -110,7 +112,7 @@ Rendering treats AI and user text as plain text. Raw generated HTML must not be 
 
 ## 5. Proposed REST contract
 
-The existing routes stay unversioned for diagnostics. All new application routes below use `/api/v1`. They are designs, not endpoints that already exist.
+The diagnostic routes stay unversioned. This broader table is the original product design; resume CRUD/profile/extraction/analysis operations are now implemented as documented in [docs/08-setup-and-api.md](08-setup-and-api.md). Job and interview routes remain proposals.
 
 ### Existing endpoints
 
@@ -118,7 +120,7 @@ The existing routes stay unversioned for diagnostics. All new application routes
 | --- | --- |
 | `GET /` | Returns the backend service name and `status: running`. |
 | `GET /health` | Reads public project metadata; returns 200 with `not_configured` if environment settings are missing, or 503 for a failed database read. It does not exercise private tables or writes. |
-| `POST /ai-test` | Makes a small Gemini request; returns configured/connected/error states. Currently unauthenticated and has no application usage limiter. Restrict or disable public paid probes before wider release. |
+| `POST /ai-test` | Authenticated, rate-limited Groq connectivity check. It does not generate or save an analysis. |
 
 The root README mentions `/api/health` in one migration paragraph, but the implemented backend path is `/health`.
 
@@ -133,7 +135,7 @@ The root README mentions `/api/health` in one migration paragraph, but the imple
 | `PATCH /resumes/:id` | Display title only | Update allowlisted metadata; 200. Client cannot change ownership, storage path, processing status, or AI scores. |
 | `DELETE /resumes/:id` | Owned ID | Delete workflow and file cleanup; 204 only once required cleanup finishes. Failures remain visible/retryable. |
 | `GET /resumes/:id/file` | Owned ID | Authorized download; no permanent public file URL. |
-| `POST /resumes/:id/extraction` | Idempotency key | Parse source, extract/validate/store profile; 200 on success or typed error with the saved resume status. |
+| `POST /resumes/:id/extract` | Owned resume | Extract actual PDF/DOCX text, validate and store a draft profile; 200 on success or typed error. |
 | `GET /resumes/:id/profile` | Owned ID | Current structured profile with provenance and revision. |
 | `PATCH /resumes/:id/profile` | Allowlisted profile corrections and confirmation | Validate/store edits and increment revision. This is an additional CRUD update surface; it never rewrites the uploaded file. |
 
@@ -143,8 +145,8 @@ Uploading a replacement creates a new resume. `display_title` and structured pro
 
 | Method/path under `/api/v1` | Contract |
 | --- | --- |
-| `POST /resumes/:id/analyses` | Requires a confirmed profile; create a versioned, validated analysis. Return 201 on success. |
-| `GET /resumes/:id/analyses`, `GET /analyses/:id` | Owned history and individual stored result. |
+| `POST /resumes/:id/analysis` | Requires a confirmed profile; validate a versioned result, compute score and save. Return 201 on success. |
+| `GET /resumes/:id/analysis` | Read the latest owned analysis result. Full history remains future work. |
 | `POST /job-descriptions` | Create title/company/description; 201. |
 | `GET /job-descriptions`, `GET /job-descriptions/:id` | Owned list/detail; 200. |
 | `PATCH /job-descriptions/:id` | Update an unreferenced description. If results reference it, return 409 and offer to save a new description instead. |
@@ -189,22 +191,22 @@ Use a request key unique to the user and AI operation. Repeated submissions of t
 
 Each task has a server-owned prompt version, output schema, rubric version where applicable, and permitted input sources. The model cannot choose the user, SQL query, storage path, endpoint, or ownership relation. Resume/job/answer text is quoted as untrusted data; instructions embedded in it must not override the task.
 
-Use an explicitly configured, tested model for business workflows. Do not copy the connectivity probe's arbitrary-model fallback into scoring. Record the actual model and prompt/rubric versions for every saved result. Structured-output configuration is supported by Gemini, but source grounding and semantic validation remain backend responsibilities; see [the official structured-output guide](https://ai.google.dev/gemini-api/docs/structured-output).
+Use an explicitly configured model for business workflows. The current adapter calls Groq chat completions with JSON Object Mode; the backend applies its own closed runtime schema and evidence checks because JSON syntax alone does not enforce the result schema. Record the actual model and prompt/rubric versions for every saved result. See [Groq's structured-output documentation](https://console.groq.com/docs/structured-outputs).
 
 For each result: check provider status, safely parse the response, detect absent/blocked/truncated content, parse JSON, enforce a closed runtime schema, check source evidence, compute derived fields, and store the accepted application representation. Do not persist an invalid candidate as completed or rely on a TypeScript type assertion as runtime validation.
 
 ### A. File text and resume profile extraction
 
 1. Accept one PDF/DOCX file; validate MIME, extension, and actual format. Use an opaque per-user storage key.
-2. Apply a maximum of 10 MiB, matching the migration. Proposed additional caps: 50 pages and 60,000 extracted characters. Reject excess input clearly rather than silently dropping content that may affect scores.
-3. Apply parser resource/time limits. Handle corrupt/encrypted PDFs, unsafe or excessive DOCX archive expansion, and documents with no usable text. Choose parsers against representative anonymized samples before committing to them.
+2. Apply a maximum of 10 MiB, 50 pages and 80,000 extracted characters. Reject excess input clearly rather than silently dropping content that may affect scores.
+3. Bound DOCX archive expansion and reject corrupt or no-text documents. Image-only PDF OCR is not supported and returns a clear extraction failure.
 4. Save extracted text and its status. Separate deterministic file-to-text parsing from LLM interpretation; the SQL `extraction_status` tracks the combined workflow, with `extraction_error` identifying its failed stage.
-5. Ask Gemini for fields such as `summary`, `skills[]`, `education[]`, `experience[]`, and `projects[]`. Fields absent from the source stay null/empty with an explanatory warning.
+5. Ask Groq for `summary`, `skills[]`, `education[]`, `experience[]`, and `projects[]`. Optional values/collections stay empty when absent; the analysis identifies missing sections separately.
 6. Include evidence excerpts or source offsets for extracted claims. Validate that references resolve to the source; that establishes traceability, not complete truth verification. Reject unsupported claims where detected and ask the user to review uncertain entries.
 7. Normalize whitespace and duplicate skills without inventing credentials. Save the structured profile separately from raw text, with model/schema/prompt versions and a profile revision.
 8. Require user review/confirmation before analysis. Mark later user corrections as user-provided rather than claiming they were extracted from the file.
 
-The existing schema saves only raw extracted text; `resume_profiles` is a proposed migration. Proposed profile limits are 50 skills, 20 education entries, 30 experience entries, 30 projects, and bounded text per item; the exact runtime schema must be published alongside implementation.
+The Sprint 3 migration adds `resume_profiles` with validated JSONB arrays. Runtime limits are 30 skills, 12 education entries, 20 experience entries, 30 projects, and bounded text per item.
 
 ### B. Resume analysis
 

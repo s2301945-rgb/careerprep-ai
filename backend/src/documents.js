@@ -1,5 +1,7 @@
 import { ApiError } from "./errors.js";
 import yauzl from "yauzl";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_MULTIPART_BYTES = MAX_FILE_BYTES + 64 * 1024;
@@ -178,4 +180,124 @@ export async function validateResumeFile({ filename, clientMimeType, buffer }) {
   }
 
   throw new ApiError(422, "DOCUMENT_INVALID", "The file extension and document format must both be PDF or DOCX.");
+}
+
+function decodeXml(value) {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (entity, name) => {
+    if (name === "amp") return "&";
+    if (name === "lt") return "<";
+    if (name === "gt") return ">";
+    if (name === "quot") return '"';
+    if (name === "apos") return "'";
+    const code = name[1]?.toLowerCase() === "x" ? Number.parseInt(name.slice(2), 16) : Number.parseInt(name.slice(1), 10);
+    return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
+  });
+}
+
+function extractDocxText(buffer) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let zipfile;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      zipfile?.close();
+      reject(new ApiError(422, "TEXT_EXTRACTION_FAILED", "Text could not be extracted from this DOCX document."));
+    };
+    yauzl.fromBuffer(buffer, {
+      lazyEntries: true,
+      autoClose: true,
+      validateEntrySizes: true,
+      strictFileNames: true,
+    }, (error, openedZip) => {
+      if (error || !openedZip) return fail();
+      zipfile = openedZip;
+      let total = 0;
+      zipfile.on("error", fail);
+      zipfile.on("entry", (entry) => {
+        total += entry.uncompressedSize;
+        if (!entry.fileName || entry.fileName.includes("\\") || entry.fileName.startsWith("/")
+          || total > MAX_DOCX_TOTAL_BYTES) return fail();
+        if (entry.fileName !== "word/document.xml") {
+          zipfile.readEntry();
+          return;
+        }
+        if (entry.uncompressedSize > MAX_DOCX_ENTRY_BYTES) return fail();
+        zipfile.openReadStream(entry, (streamError, stream) => {
+          if (streamError || !stream) return fail();
+          const chunks = [];
+          let size = 0;
+          stream.on("data", (chunk) => {
+            size += chunk.length;
+            if (size > MAX_DOCX_ENTRY_BYTES) stream.destroy(new Error("DOCX text entry is too large"));
+            else chunks.push(chunk);
+          });
+          stream.on("error", fail);
+          stream.on("end", () => {
+            if (settled) return;
+            const xml = Buffer.concat(chunks).toString("utf8");
+            const paragraphs = [...xml.matchAll(/<(?:[A-Za-z_][\w.-]*:)?p(?:\s[^>]*)?>([\s\S]*?)<\/(?:[A-Za-z_][\w.-]*:)?p>/g)];
+            const text = paragraphs.map(([, paragraph]) => {
+              const withBreaks = paragraph
+                .replace(/<(?:[A-Za-z_][\w.-]*:)?tab\b[^>]*\/?\s*>/g, "\t")
+                .replace(/<(?:[A-Za-z_][\w.-]*:)?br\b[^>]*\/?\s*>/g, " ")
+                .replace(/<(?:[A-Za-z_][\w.-]*:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:[A-Za-z_][\w.-]*:)?t>/g, "$1")
+                .replace(/<[^>]+>/g, "");
+              return decodeXml(withBreaks).replace(/\s+/g, " ").trim();
+            }).filter(Boolean).join("\n").slice(0, 80_000);
+            settled = true;
+            zipfile.close();
+            resolve(text);
+          });
+        });
+      });
+      zipfile.on("end", () => {
+        if (!settled) fail();
+      });
+      zipfile.readEntry();
+    });
+  });
+}
+
+export async function extractResumeText({ mimeType, buffer }) {
+  let text;
+  if (mimeType === DOCX_MIME) {
+    text = await extractDocxText(buffer);
+  } else if (mimeType === PDF_MIME) {
+    try {
+      const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const pdfjsPath = fileURLToPath(import.meta.resolve("pdfjs-dist/legacy/build/pdf.mjs"));
+      const standardFontDataUrl = `${path.resolve(path.dirname(pdfjsPath), "../../standard_fonts").replace(/\\/g, "/")}/`;
+      const task = getDocument({
+        data: new Uint8Array(buffer),
+        isEvalSupported: false,
+        stopAtErrors: true,
+        standardFontDataUrl,
+      });
+      const pdf = await task.promise;
+      if (pdf.numPages > 50) {
+        await task.destroy();
+        throw new ApiError(422, "DOCUMENT_TOO_COMPLEX", "This resume has more than 50 pages and cannot be processed.");
+      }
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+        page.cleanup();
+      }
+      await task.destroy();
+      text = pages.join("\n").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 80_000);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(422, "TEXT_EXTRACTION_FAILED", "Text could not be extracted from this PDF. Scanned image-only PDFs are not supported yet.");
+    }
+  } else {
+    throw new ApiError(422, "DOCUMENT_INVALID", "Only PDF and DOCX resume files can be processed.");
+  }
+
+  if (typeof text !== "string" || text.replace(/\s/g, "").length < 30) {
+    throw new ApiError(422, "TEXT_EXTRACTION_FAILED", "This file does not contain enough readable text to analyze. Scanned image-only PDFs are not supported yet.");
+  }
+  return text;
 }

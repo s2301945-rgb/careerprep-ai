@@ -107,6 +107,7 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
     "20261014150915_initial_schema.sql",
     "20261016160000_add_walking_skeleton_config.sql",
     "20261022160000_sprint_2_resume_api.sql",
+    "20261107090000_sprint_3_resume_ai.sql",
   ]) {
     assert.equal(await verifyMigrationSchema(pool, filename), true, `${filename} baseline verification`);
   }
@@ -116,6 +117,12 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
            has_table_privilege('careerprep_api', 'careerprep.users', 'SELECT') AS can_read_users,
            has_table_privilege('careerprep_api', 'careerprep.users', 'DELETE') AS can_delete_users,
            has_table_privilege('careerprep_api', 'careerprep.resumes', 'DELETE') AS can_delete_resumes,
+           has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'SELECT') AS can_read_profiles,
+           has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'INSERT') AS can_create_profiles,
+           has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'UPDATE') AS can_update_profiles,
+           has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'DELETE') AS can_delete_profiles,
+           has_table_privilege('careerprep_api', 'careerprep.resume_analyses', 'INSERT') AS can_create_analyses,
+           has_table_privilege('careerprep_api', 'careerprep.resume_analyses', 'UPDATE') AS can_update_analyses,
            has_table_privilege('anon', 'careerprep.users', 'SELECT') AS anon_can_read
   `);
   assert.deepEqual(grants.rows[0], {
@@ -123,6 +130,12 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
     can_read_users: true,
     can_delete_users: false,
     can_delete_resumes: true,
+    can_read_profiles: true,
+    can_create_profiles: true,
+    can_update_profiles: true,
+    can_delete_profiles: false,
+    can_create_analyses: true,
+    can_update_analyses: true,
     anon_can_read: false,
   });
 
@@ -196,6 +209,52 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   const secondResume = (await secondUpload.json()).resume;
   assert.equal(typeof firstResume.id, "string");
   assert.equal(typeof firstResume.file_size_bytes, "string");
+
+  const sourceText = "Skills: JavaScript and SQL. Built a scheduling tool used by 120 students.";
+  const profileContent = {
+    summary: "Entry-level developer with a measurable project result.",
+    skills: [{ name: "JavaScript", evidence: "Skills: JavaScript and SQL" }],
+    education: [],
+    projects: [],
+    experience: [{ role: "Project developer", organization: "", highlights: [{ text: "Built a scheduling tool.", evidence: "Built a scheduling tool" }] }],
+  };
+  assert.equal(await repository.storeResumeText(userA.id, firstResume.id, sourceText), true);
+  const savedProfile = await repository.saveExtractedProfile(userA.id, firstResume.id, {
+    sourceText,
+    profile: profileContent,
+    schemaVersion: "resume-profile-v1",
+    provider: "groq",
+    model: "test/model",
+    promptVersion: "test-v1",
+  });
+  assert.equal(savedProfile.review_status, "draft");
+  assert.equal(savedProfile.profile_revision, 1);
+  assert.equal(await repository.getResumeProfile(userB.id, firstResume.id), null);
+  assert.equal(await repository.createResumeAnalysisRun(userA.id, firstResume.id, { profile_revision: 1 }), null);
+  const confirmedProfile = await repository.confirmResumeProfile(userA.id, firstResume.id, profileContent);
+  assert.equal(confirmedProfile.review_status, "confirmed");
+  const confirmedContext = await repository.getConfirmedResumeContext(userA.id, firstResume.id);
+  assert.equal(confirmedContext.sourceText, sourceText);
+  const analysisId = await repository.createResumeAnalysisRun(userA.id, firstResume.id, {
+    profile_revision: confirmedProfile.profile_revision,
+    rubric_version: "resume-rubric-v1",
+  });
+  assert.ok(analysisId);
+  const completedAnalysis = await repository.completeResumeAnalysis(userA.id, firstResume.id, analysisId, {
+    result: {
+      overall_score: 70,
+      summary: "The profile has a measurable result.",
+      strengths: [{ text: "A result is quantified.", evidence: "used by 120 students" }],
+      weaknesses: [], missing_sections: [], recommendations: [],
+      rubric_scores: { clarity: 70, relevance: 70, evidence: 80, completeness: 60 },
+      skill_assessments: [{ name: "JavaScript", score: 75, evidence: "Skills: JavaScript and SQL" }],
+    },
+    provider: "groq", model: "test/model", promptVersion: "test-v1", rubricVersion: "resume-rubric-v1",
+  });
+  assert.equal(completedAnalysis.status, "completed");
+  assert.equal(completedAnalysis.overall_score, 70);
+  assert.equal(completedAnalysis.rubric_scores.skill_assessments[0].name, "JavaScript");
+  assert.equal((await repository.getLatestResumeAnalysis(userA.id, firstResume.id)).id, analysisId);
 
   const pageOneResponse = await fetch(`${baseUrl}/api/v1/resumes?limit=1`, { headers: authHeaders("user-a") });
   assert.equal(pageOneResponse.status, 200);

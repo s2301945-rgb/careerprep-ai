@@ -7,9 +7,36 @@ import { ApiError } from "../../src/errors.js";
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 const ALLOWED_ORIGIN = "https://careerprep.example";
 
+function textPdf(text) {
+  const content = `BT /F1 12 Tf 72 720 Td (${text.replace(/[()\\]/g, "\\$&")}) Tj ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
+  ];
+  let document = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(document));
+    document += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(document);
+  document += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) document += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  document += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(document);
+}
+
+const AI_RESUME_TEXT = "Jamie Cruz. Skills: JavaScript and SQL. Built an app used by 120 students.";
+
 const state = {
   resumes: new Map(),
   storage: new Map(),
+  extractedTexts: new Map(),
+  profiles: new Map(),
+  analyses: new Map(),
   removeFailures: 0,
   lastDownloadPath: null,
   lastUploadPath: null,
@@ -78,6 +105,80 @@ const repository = {
     if (resume?.ownerUserId !== userId) return null;
     resume.display_title = displayTitle;
     return publicResume(resume);
+  },
+  async storeResumeText(userId, resumeId, sourceText) {
+    const resume = state.resumes.get(resumeId);
+    if (!resume || resume.ownerUserId !== userId) return false;
+    state.extractedTexts.set(resumeId, sourceText);
+    resume.extraction_status = "completed";
+    return true;
+  },
+  async saveExtractedProfile(userId, resumeId, input) {
+    const resume = state.resumes.get(resumeId);
+    if (!resume || resume.ownerUserId !== userId) return null;
+    const profile = {
+      resume_id: resumeId,
+      ...input.profile,
+      schema_version: input.schemaVersion,
+      profile_revision: (state.profiles.get(resumeId)?.profile_revision ?? 0) + 1,
+      review_status: "draft",
+      confirmed_at: null,
+      model_provider: input.provider,
+      model_name: input.model,
+      prompt_version: input.promptVersion,
+      updated_at: "2026-11-07T00:00:00.000Z",
+    };
+    state.profiles.set(resumeId, profile);
+    return profile;
+  },
+  async failResumeExtraction(userId, resumeId, errorCode) {
+    const resume = state.resumes.get(resumeId);
+    if (resume?.ownerUserId === userId) resume.extraction_error = errorCode;
+  },
+  async getResumeProfile(userId, resumeId) {
+    const resume = state.resumes.get(resumeId);
+    return resume?.ownerUserId === userId ? state.profiles.get(resumeId) ?? null : null;
+  },
+  async getConfirmedResumeContext(userId, resumeId) {
+    const resume = state.resumes.get(resumeId);
+    const profile = state.profiles.get(resumeId);
+    return resume?.ownerUserId === userId && profile
+      ? { sourceText: state.extractedTexts.get(resumeId), profile }
+      : null;
+  },
+  async confirmResumeProfile(userId, resumeId, content) {
+    const profile = await this.getResumeProfile(userId, resumeId);
+    if (!profile) return null;
+    Object.assign(profile, content, { review_status: "confirmed", confirmed_at: "2026-11-07T00:00:00.000Z" });
+    return profile;
+  },
+  async createResumeAnalysisRun(userId, resumeId) {
+    const id = "9001";
+    state.analyses.set(resumeId, { id, status: "processing" });
+    return id;
+  },
+  async completeResumeAnalysis(userId, resumeId, id, input) {
+    const analysis = {
+      id,
+      status: "completed",
+      ...input.result,
+      rubric_version: input.rubricVersion,
+      model_provider: input.provider,
+      model_name: input.model,
+      prompt_version: input.promptVersion,
+      created_at: "2026-11-07T00:00:00.000Z",
+      completed_at: "2026-11-07T00:00:01.000Z",
+    };
+    state.analyses.set(resumeId, analysis);
+    return analysis;
+  },
+  async failResumeAnalysis(userId, resumeId, id, code) {
+    const analysis = state.analyses.get(resumeId);
+    if (analysis?.id === id) Object.assign(analysis, { status: "failed", error_code: code });
+  },
+  async getLatestResumeAnalysis(userId, resumeId) {
+    const resume = state.resumes.get(resumeId);
+    return resume?.ownerUserId === userId ? state.analyses.get(resumeId) ?? null : null;
   },
   async armUploadCleanup(userId, storagePath) {
     return { id: `upload:${storagePath}`, owner_user_id: userId, storage_path: storagePath, status: "armed" };
@@ -159,10 +260,10 @@ function authHeader(token = "tokenA") {
   return { Authorization: `Bearer ${token}` };
 }
 
-async function uploadResume(baseUrl, { token = "tokenA", filename = "Resume.pdf", title = "Resume" } = {}) {
+async function uploadResume(baseUrl, { token = "tokenA", filename = "Resume.pdf", title = "Resume", buffer = PDF } = {}) {
   const form = new FormData();
   form.set("display_title", title);
-  form.set("file", new Blob([PDF], { type: "application/pdf" }), filename);
+  form.set("file", new Blob([buffer], { type: "application/pdf" }), filename);
   return fetch(`${baseUrl}/api/v1/resumes`, {
     method: "POST",
     headers: authHeader(token),
@@ -180,6 +281,35 @@ before(async () => {
     auth,
     storage,
     aiProbe: { async check() { return { ai: "connected" }; } },
+    resumeAI: {
+      async extractProfile() {
+        return {
+          result: {
+            summary: "Information Technology graduate with application project experience.",
+            skills: [{ name: "JavaScript", evidence: "Skills: JavaScript and SQL" }],
+            education: [],
+            projects: [],
+            experience: [{ role: "Project builder", organization: "", highlights: [{ text: "Built an app used by 120 students.", evidence: "used by 120 students" }] }],
+          },
+          provider: "groq", model: "test/model", promptVersion: "test-v1",
+        };
+      },
+      async analyze() {
+        return {
+          result: {
+            summary: "The resume has one measurable project outcome.",
+            strengths: [{ text: "Includes a measured result.", evidence: "used by 120 students" }],
+            weaknesses: [],
+            missing_sections: [],
+            recommendations: [{ text: "Add dates to each experience." }],
+            rubric_scores: { clarity: 70, relevance: 70, evidence: 80, completeness: 60 },
+            skill_assessments: [{ name: "JavaScript", score: 75, evidence: "Skills: JavaScript and SQL" }],
+            overall_score: 70,
+          },
+          provider: "groq", model: "test/model", promptVersion: "test-v1",
+        };
+      },
+    },
     logger: { error() {} },
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -189,6 +319,9 @@ before(async () => {
 beforeEach(() => {
   state.resumes.clear();
   state.storage.clear();
+  state.extractedTexts.clear();
+  state.profiles.clear();
+  state.analyses.clear();
   state.removeFailures = 0;
   state.lastDownloadPath = null;
   state.lastUploadPath = null;
@@ -214,6 +347,49 @@ test("verified identity resolves to the application profile without accepting an
   const response = await fetch(`${baseUrl}/api/v1/me`, { headers: authHeader() });
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { user: { id: "7001", email: "a@example.test", name: "User A" } });
+});
+
+test("resume profile extraction, explicit confirmation and saved analysis are authenticated and owner scoped", async () => {
+  const buffer = textPdf(AI_RESUME_TEXT);
+  const uploaded = await uploadResume(baseUrl, { filename: "Jamie.pdf", buffer });
+  const resumeId = (await uploaded.json()).resume.id;
+
+  const premature = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, {
+    method: "POST", headers: authHeader(),
+  });
+  assert.equal(premature.status, 409);
+  assert.equal((await premature.json()).error.code, "PROFILE_REVIEW_REQUIRED");
+
+  const extracted = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/extract`, {
+    method: "POST", headers: authHeader(),
+  });
+  assert.equal(extracted.status, 200);
+  const profile = (await extracted.json()).profile;
+  assert.equal(profile.review_status, "draft");
+  assert.equal(profile.skills[0].name, "JavaScript");
+  assert.match(state.extractedTexts.get(resumeId), /used by 120 students/);
+
+  const confirmed = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/profile`, {
+    method: "PATCH",
+    headers: { ...authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ summary: profile.summary, skills: profile.skills, education: profile.education, projects: profile.projects, experience: profile.experience }),
+  });
+  assert.equal(confirmed.status, 200);
+  assert.equal((await confirmed.json()).profile.review_status, "confirmed");
+
+  const analyzed = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, {
+    method: "POST", headers: authHeader(),
+  });
+  assert.equal(analyzed.status, 201);
+  const analysis = (await analyzed.json()).analysis;
+  assert.equal(analysis.status, "completed");
+  assert.equal(analysis.overall_score, 70);
+  assert.equal(analysis.model_provider, "groq");
+
+  const otherUser = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/profile`, { headers: authHeader("tokenB") });
+  assert.equal(otherUser.status, 404);
+  const loaded = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { headers: authHeader() });
+  assert.equal((await loaded.json()).analysis.id, analysis.id);
 });
 
 test("resume upload validates document bytes, returns private metadata, and hides the storage key", async () => {

@@ -22,6 +22,42 @@ export type ResumeListResponse = {
   next_cursor: string | null;
 };
 
+export type ResumeSkill = { name: string; evidence: string };
+export type ResumeEducation = { credential: string; institution: string; evidence: string };
+export type ResumeProject = { name: string; description: string; evidence: string };
+export type ResumeHighlight = { text: string; evidence: string };
+export type ResumeExperience = { role: string; organization: string; highlights: ResumeHighlight[] };
+export type ResumeProfile = {
+  resume_id: string;
+  summary: string;
+  skills: ResumeSkill[];
+  education: ResumeEducation[];
+  projects: ResumeProject[];
+  experience: ResumeExperience[];
+  schema_version: string;
+  profile_revision: number;
+  review_status: "draft" | "confirmed";
+  confirmed_at: string | null;
+  updated_at: string;
+};
+export type ResumeAnalysis = {
+  id: string;
+  status: "processing" | "completed" | "failed";
+  overall_score: number | null;
+  summary: string | null;
+  strengths: Array<{ text: string; evidence: string }>;
+  weaknesses: Array<{ text: string; evidence: string }>;
+  missing_sections: Array<{ section: string; reason: string }>;
+  recommendations: Array<{ text: string; evidence?: string }>;
+  rubric_scores: { clarity: number; relevance: number; evidence: number; completeness: number; skill_assessments: Array<{ name: string; score: number; evidence: string }> };
+  rubric_version: string;
+  model_provider: string | null;
+  model_name: string | null;
+  prompt_version: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
 export type AppProfile = {
   id: string;
   email: string;
@@ -189,6 +225,29 @@ export function renameResume(id: string, displayTitle: string) {
 
 export function deleteResume(id: string) {
   return requestJson<void>(`/api/v1/resumes/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function extractResumeProfile(id: string) {
+  return requestJson<{ profile: ResumeProfile }>(`/api/v1/resumes/${encodeURIComponent(id)}/extract`, { method: "POST" });
+}
+
+export function getResumeProfile(id: string) {
+  return requestJson<{ profile: ResumeProfile }>(`/api/v1/resumes/${encodeURIComponent(id)}/profile`);
+}
+
+export function confirmResumeProfile(id: string, profile: Pick<ResumeProfile, "summary" | "skills" | "education" | "projects" | "experience">) {
+  return requestJson<{ profile: ResumeProfile }>(`/api/v1/resumes/${encodeURIComponent(id)}/profile`, {
+    method: "PATCH",
+    json: profile,
+  });
+}
+
+export function runResumeAnalysis(id: string) {
+  return requestJson<{ analysis: ResumeAnalysis }>(`/api/v1/resumes/${encodeURIComponent(id)}/analysis`, { method: "POST" });
+}
+
+export function getResumeAnalysis(id: string) {
+  return requestJson<{ analysis: ResumeAnalysis }>(`/api/v1/resumes/${encodeURIComponent(id)}/analysis`);
 }
 
 export async function downloadResume(id: string) {

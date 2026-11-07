@@ -1,15 +1,17 @@
 # CareerPrep AI database reference
 
-This reference records the original migrations and follow-up design baseline. The Sprint 2 follow-up migration and its application evidence are tracked in the [sprint delivery record](06-sprint-log.md). Original Laravel fields below describe migration history, not the current authentication contract once the follow-up migration has been applied.
+This reference describes the initial schema plus the repository's Sprint 2 and Sprint 3 migrations. It does not establish that a particular remote database has every migration; check the [sprint delivery record](06-sprint-log.md) for environment-specific evidence. Original Laravel fields below describe migration history, not the current authentication contract.
 
-Snapshot: October 21, 2026. This document describes SQL in the repository; the live database was not inspected. The auth/profile additions below are proposals, not applied migrations.
+Repository migration set current through November 7, 2026. The live database state is environment-specific.
 
 ## 1. Migration sources and execution order
 
 1. [`20261014150915_initial_schema.sql`](../supabase/migrations/20261014150915_initial_schema.sql): transactionally creates private schema `careerprep`, eight application tables, constraints, query indexes, and update triggers. The header explicitly assumes Laravel-managed authentication and a private SQL connection.
 2. [`20261016160000_add_walking_skeleton_config.sql`](../supabase/migrations/20261016160000_add_walking_skeleton_config.sql): creates public read-only `app_config`, enables its RLS, adds a public SELECT policy, and inserts project metadata if empty.
+3. [`20261022160000_sprint_2_resume_api.sql`](../supabase/migrations/20261022160000_sprint_2_resume_api.sql): adds Auth identity mapping, resume display title, private-storage cleanup outbox and runtime-role grants.
+4. [`20261107090000_sprint_3_resume_ai.sql`](../supabase/migrations/20261107090000_sprint_3_resume_ai.sql): adds owned structured profiles, review confirmation, rubric scores and source/profile revision snapshots for resume analysis.
 
-The first migration is intended for a new/empty Supabase project and is not a repeatable setup script. Apply new design changes through a subsequent migration with an explicit data/backfill strategy. The documentation task did not modify or execute migrations.
+The first migration is intended for a new/empty Supabase project and is not a repeatable setup script. Apply new design changes through a subsequent migration with an explicit data/backfill strategy.
 
 ## 2. Current relationships
 
@@ -60,7 +62,11 @@ All eight application tables have bigint identity primary keys named `id`. Unles
 | `extraction_error`, `extracted_at` | Optional nonblank varchar(100) error code and timestamp |
 | `created_at`, `updated_at` | Required timestamps |
 
-Files are intended to live in a private storage bucket; the migration does not create that bucket or its access policies. There are no structured resume-profile columns, display title, content hash, or durable file cleanup records.
+Files live in the private bucket configured by the Sprint 2 migration. Sprint 3 keeps the bounded extracted text in this private row for grounded profile/analysis work; the API never returns it to the browser.
+
+### `careerprep.resume_profiles` (Sprint 3)
+
+One row per resume, keyed by `resume_id` and tied to the same `user_id` through a composite cascading foreign key. The row contains a summary, JSONB arrays for skills, education, projects and experience, schema version, monotonically increasing profile revision, `draft`/`confirmed` review state and timestamp, plus model/prompt provenance. JSON arrays are shape-checked in SQL and item/evidence-checked in the backend. A user-confirmed edit advances the revision when profile content changes.
 
 ### `careerprep.resume_analyses`
 
@@ -76,7 +82,7 @@ Files are intended to live in a private storage bucket; the migration does not c
 | `error_code`, `completed_at` | Optional varchar(100) and timestamp |
 | `created_at`, `updated_at` | Required timestamps |
 
-The current table has no component-score breakdown or source/profile snapshot. Array contents and evidence grounding are application validation responsibilities.
+Sprint 3 adds `rubric_scores` and `source_snapshot` JSONB objects. The snapshot records the confirmed profile revision/schema and rubric version rather than duplicating source text. Item schemas and evidence grounding remain backend validation responsibilities.
 
 ### `careerprep.job_descriptions`
 
@@ -184,23 +190,16 @@ Analyses, matches, and sessions check that a non-null `completed_at` implies `st
 - Unique answer question ID supports single-answer lookup.
 - `touch_updated_at()` triggers update seven mutable application tables; questions have only creation time.
 
-## 5. Proposed follow-up migration plan
+## 5. Remaining follow-up migration plan
 
-These are design requirements to review before writing SQL. None are implemented by this documentation change.
+Auth mapping, runtime grants, display titles, storage cleanup, structured resume profiles, and resume-analysis provenance/scores are implemented in the migrations listed above. The following design work remains outside the Week 3 scope:
 
 | Change | Purpose and required treatment |
 | --- | --- |
-| Supabase identity mapping | Add unique non-null `users.auth_user_id` UUID referencing `auth.users(id)`. For existing rows, define an explicit matching/backfill policy before requiring non-null. Keep bigint application IDs and existing ownership FKs. Do not auto-link accounts solely because a caller submits an email. |
-| Remove local credential columns | After identity mapping is verified, remove `password` and `remember_token`. Decide whether profile email/verification fields remain synchronized display data; they must not become a separate login authority. |
-| Runtime role/grants | Grant a dedicated server role only required schema usage, table access, sequence access, and necessary function use. Keep migration credentials separate. Keep `careerprep` out of Data API exposed schemas. |
-| Resume display title | Add a validated `display_title` field, with a deliberate backfill from the original filename if desired. This supports a meaningful rename operation without altering stored file identity. |
-| Structured profile | Add `careerprep.resume_profiles`: `resume_id` bigint PK, `user_id` bigint, composite owned-resume FK with cascade, `summary` nullable text, `skills`, `education`, `experience`, `projects` JSONB arrays, `schema_version`, `profile_revision` integer, `review_status`, `confirmed_at`, `model_provider`, `model_name`, `prompt_version`, timestamps. Validate nested structures in the backend and coarse JSON shapes in SQL. |
-| Source provenance | Save a bounded `source_snapshot` JSONB on analyses, matches, and sessions, including the confirmed profile revision and relevant job text/version. Source files stay immutable; later profile edits create a new revision. Mark prior results as historical rather than silently recomputing them from changed inputs. Apply the same retention/deletion controls to snapshots. |
-| Explainable scores | Add a checked `rubric_scores` JSONB object to analyses and a `requirement_assessments` JSONB array to matches. Add `rubric_version` to answers, or enforce and document immutable inheritance from the session. Store backend-computed aggregates in existing score columns. |
+| Matching provenance and assessments | Add requirement-by-requirement `requirement_assessments` and a job-description version/source snapshot to `job_matches`. Keep backend-computed aggregate score and profile revision. |
+| Interview provenance and score versioning | Preserve the confirmed profile/job revision on sessions and give answers an explicit rubric version. |
 | Request deduplication | Add operation-specific idempotency keys and unique owner/key constraints for analysis, match, and interview creation. Use conditional state changes for extraction and answer evaluation. Validate key length and retention. |
-| Processing recovery | Define run start/deadline metadata or an equivalent stale-run policy. Persist final failure codes, prohibit transitions that overwrite completed results, and coordinate deletion with in-flight operations. |
-| File cleanup durability | Add a minimal cleanup-task/outbox record that preserves storage keys and retry state independently of cascade deletion. Backend workers or controlled retries complete storage cleanup. Final user-visible delete semantics must agree with this implementation. |
-| Stronger result invariants | Where justified, require completion timestamps and required fields for terminal success, and clear incompatible terminal fields when retrying failures. Use new constraints only after checking existing data. |
+| Processing recovery and stronger result invariants | Define run deadlines/stale-run handling, prevent transitions that overwrite terminal results, and constrain required fields/timestamps for successful states. |
 
 Suggested new profile relationship:
 
@@ -215,6 +214,6 @@ Supabase Auth deletion cascading to application profiles would also cascade appl
 
 ## 6. Migration and data-access review checklist
 
-Before implementing the next migration: inspect the actual deployed schema and existing users; confirm migration ownership and recovery/backup procedures; design the identity backfill; establish the runtime SQL role; review storage policy and deletion semantics; document all new environment names; and demonstrate ownership with two test identities.
+Before any remaining migration: inspect the target schema and existing rows, confirm migration ownership and recovery/backup procedures, review storage/data retention, document environment needs and demonstrate ownership with two test identities.
 
 Database integration should use parameterized queries, short transactions, explicit `careerprep` qualification or a controlled search path, TLS, bounded pools, and decimal-string serialization of bigint identifiers. External AI calls happen outside database transactions, with a final atomic status/result commit. Do not broaden anon/authenticated grants to make the current metadata probe serve application CRUD.

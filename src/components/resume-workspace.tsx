@@ -5,12 +5,19 @@ import {
   ApiError,
   deleteResume,
   downloadResume,
+  extractResumeProfile,
+  getResumeAnalysis,
   getCurrentProfile,
   getResume,
+  getResumeProfile,
   listResumes,
+  confirmResumeProfile,
   renameResume,
+  runResumeAnalysis,
   uploadResume,
+  type ResumeAnalysis,
   type AppProfile,
+  type ResumeProfile,
   type ResumeRecord,
 } from "@/lib/api";
 import { ServiceDiagnostics } from "@/components/service-diagnostics";
@@ -270,7 +277,7 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
                 <input accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="resume-file-help" id="resume-file" name="file" onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? "")} required type="file" />
                 <span className="file-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg></span>
                 <span className="file-picker-copy"><strong title={selectedFileName || undefined}>{selectedFileName || "Choose a file"}</strong><span>{selectedFileName ? "Ready to upload" : "Browse your device"}</span></span>
-                <span className="file-picker-hint" id="resume-file-help">PDF or DOCX<br />Up to 10 MB</span>
+                <span className="file-picker-hint" id="resume-file-help">PDF or DOCX<br />Up to 10 MiB</span>
               </div>
               {uploadError && <p className="inline-message inline-error" role="alert">{uploadError}</p>}
               {uploadNotice && <p className="inline-message inline-success" role="status">{uploadNotice}</p>}
@@ -301,6 +308,10 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
+  const [profile, setProfile] = useState<ResumeProfile | null>(null);
+  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -318,6 +329,20 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
     }).catch((reason: unknown) => {
       if (active) setActionError(reason instanceof Error ? reason.message : "Resume details could not be loaded.");
     }).finally(() => { if (active) setLoading(false); });
+    getResumeProfile(id).then((result) => {
+      if (active) setProfile(result.profile);
+    }).catch((reason: unknown) => {
+      if (active && (!(reason instanceof ApiError) || reason.status !== 404)) {
+        setAiError(reason instanceof Error ? reason.message : "The resume profile could not be loaded.");
+      }
+    });
+    getResumeAnalysis(id).then((result) => {
+      if (active) setAnalysis(result.analysis);
+    }).catch((reason: unknown) => {
+      if (active && (!(reason instanceof ApiError) || reason.status !== 404)) {
+        setAiError(reason instanceof Error ? reason.message : "The resume analysis could not be loaded.");
+      }
+    });
     return () => { active = false; };
   }, [id]);
 
@@ -384,6 +409,87 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
     }
   }
 
+  async function extractProfile() {
+    setAiBusy(true);
+    setAiError("");
+    setActionNotice("");
+    try {
+      const result = await extractResumeProfile(id);
+      setProfile(result.profile);
+      setAnalysis(null);
+      setActionNotice("Profile extracted. Review the details before confirming them.");
+    } catch (reason) {
+      setAiError(reason instanceof Error ? reason.message : "The resume profile could not be extracted.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function confirmProfile() {
+    if (!profile) return;
+    setAiBusy(true);
+    setAiError("");
+    try {
+      const result = await confirmResumeProfile(id, {
+        summary: profile.summary,
+        skills: profile.skills,
+        education: profile.education,
+        projects: profile.projects,
+        experience: profile.experience,
+      });
+      setProfile(result.profile);
+      setActionNotice("Profile confirmed. You can now generate an analysis.");
+    } catch (reason) {
+      setAiError(reason instanceof Error ? reason.message : "The profile could not be confirmed.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function analyzeResume() {
+    setAiBusy(true);
+    setAiError("");
+    setActionNotice("");
+    try {
+      const result = await runResumeAnalysis(id);
+      setAnalysis(result.analysis);
+      setActionNotice("Analysis saved to this resume.");
+    } catch (reason) {
+      setAiError(reason instanceof Error ? reason.message : "The resume could not be analyzed.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function updateProfile(change: (current: ResumeProfile) => ResumeProfile) {
+    setProfile((current) => current ? change(current) : current);
+  }
+
+  function updateSkill(index: number, field: "name" | "evidence", value: string) {
+    updateProfile((current) => ({ ...current, skills: current.skills.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  }
+
+  function updateEducation(index: number, field: "credential" | "institution" | "evidence", value: string) {
+    updateProfile((current) => ({ ...current, education: current.education.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  }
+
+  function updateProject(index: number, field: "name" | "description" | "evidence", value: string) {
+    updateProfile((current) => ({ ...current, projects: current.projects.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  }
+
+  function updateExperience(index: number, field: "role" | "organization", value: string) {
+    updateProfile((current) => ({ ...current, experience: current.experience.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  }
+
+  function updateHighlight(experienceIndex: number, highlightIndex: number, field: "text" | "evidence", value: string) {
+    updateProfile((current) => ({
+      ...current,
+      experience: current.experience.map((item, itemIndex) => itemIndex === experienceIndex
+        ? { ...item, highlights: item.highlights.map((highlight, index) => index === highlightIndex ? { ...highlight, [field]: value } : highlight) }
+        : item),
+    }));
+  }
+
   return (
     <dialog className="resume-dialog" ref={dialogRef} aria-labelledby="resume-dialog-title" onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === dialogRef.current) onClose(); }}>
       <div className="dialog-content">
@@ -392,6 +498,7 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
           <button className="icon-button dialog-close" aria-label="Close resume details" autoFocus onClick={onClose} type="button"><span aria-hidden="true">×</span></button>
         </header>
         {actionError && <div className="notice notice-error" role="alert">{actionError}</div>}
+        {aiError && <div className="notice notice-error" role="alert">{aiError}</div>}
         {actionNotice && <div className="notice notice-success" role="status">{actionNotice}</div>}
         {loading ? (
           <div className="detail-loading" aria-live="polite"><Spinner dark /><span>Loading resume details…</span></div>
@@ -405,7 +512,28 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
             </form>
 
             <section className="extraction-info" aria-labelledby="extraction-title">
-              <div className="extraction-info-title"><span className="extraction-spark" aria-hidden="true">✦</span><div><h3 id="extraction-title">Resume processing</h3><p>{resume.extraction_status === "completed" ? "Text extraction is complete." : resume.extraction_status === "processing" ? "Your document is being processed." : resume.extraction_status === "failed" ? "This document could not be processed." : "Your file is saved and ready to download. Resume analysis is not available yet."}</p></div></div>
+              <div className="extraction-info-title"><span className="extraction-spark" aria-hidden="true">✦</span><div><h3 id="extraction-title">Resume processing</h3><p>{resume.extraction_status === "completed" ? "Text extraction is complete." : resume.extraction_status === "processing" ? "Your document is being processed." : resume.extraction_status === "failed" ? "This document could not be processed." : "Your file is saved. Extract a profile to review your details and generate an analysis."}</p></div></div>
+              <p className="ai-privacy-note">When you run extraction or analysis, resume text is sent securely from the backend to Groq for processing. It is not sent from your browser.</p>
+              {!profile && <button className="button button-secondary" disabled={aiBusy} onClick={() => void extractProfile()} type="button">{aiBusy ? <><Spinner dark /> Extracting profile…</> : resume.extraction_status === "failed" ? "Retry profile extraction" : "Extract resume profile"}</button>}
+              {profile && <div className="ai-profile-card">
+                <div className="ai-result-heading"><div><span className="eyebrow">AI EXTRACTED PROFILE</span><h4>Review the details</h4></div><span className={`resume-status ${profile.review_status === "confirmed" ? "resume-status-completed" : "resume-status-pending"}`}>{profile.review_status === "confirmed" ? "Confirmed" : "Needs review"}</span></div>
+                {profile.review_status === "draft" ? <>
+                  <label className="ai-edit-field"><span>Summary</span><textarea maxLength={700} onChange={(event) => updateProfile((current) => ({ ...current, summary: event.target.value }))} value={profile.summary} /></label>
+                  <div className="ai-profile-section"><strong>Skills and source evidence</strong>{profile.skills.map((skill, index) => <div className="ai-edit-row" key={`${skill.name}-${index}`}><input aria-label={`Skill ${index + 1}`} maxLength={80} onChange={(event) => updateSkill(index, "name", event.target.value)} value={skill.name} /><input aria-label={`Evidence for skill ${index + 1}`} maxLength={400} onChange={(event) => updateSkill(index, "evidence", event.target.value)} value={skill.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, skills: current.skills.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, skills: [...current.skills, { name: "", evidence: "" }] }))} type="button">Add a skill</button></div>
+                  <div className="ai-profile-section"><strong>Education</strong>{profile.education.map((item, index) => <div className="ai-edit-group" key={`${item.institution}-${index}`}><input aria-label={`Credential ${index + 1}`} maxLength={160} placeholder="Credential or degree" onChange={(event) => updateEducation(index, "credential", event.target.value)} value={item.credential} /><input aria-label={`Institution ${index + 1}`} maxLength={160} placeholder="School or institution" onChange={(event) => updateEducation(index, "institution", event.target.value)} value={item.institution} /><input aria-label={`Education evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateEducation(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, education: current.education.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove education</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, education: [...current.education, { credential: "", institution: "", evidence: "" }] }))} type="button">Add education</button></div>
+                  <div className="ai-profile-section"><strong>Projects</strong>{profile.projects.map((item, index) => <div className="ai-edit-group" key={`${item.name}-${index}`}><input aria-label={`Project ${index + 1}`} maxLength={160} placeholder="Project name" onChange={(event) => updateProject(index, "name", event.target.value)} value={item.name} /><input aria-label={`Project description ${index + 1}`} maxLength={300} placeholder="What the project did" onChange={(event) => updateProject(index, "description", event.target.value)} value={item.description} /><input aria-label={`Project evidence ${index + 1}`} maxLength={400} placeholder="Exact phrase from the resume" onChange={(event) => updateProject(index, "evidence", event.target.value)} value={item.evidence} /><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, projects: current.projects.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove project</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, projects: [...current.projects, { name: "", description: "", evidence: "" }] }))} type="button">Add a project</button></div>
+                  <div className="ai-profile-section"><strong>Experience and project highlights</strong>{profile.experience.map((item, index) => <div className="ai-edit-group" key={`${item.role}-${index}`}><input aria-label={`Role ${index + 1}`} maxLength={160} placeholder="Role or project" onChange={(event) => updateExperience(index, "role", event.target.value)} value={item.role} /><input aria-label={`Organization ${index + 1}`} maxLength={160} placeholder="Organization (optional)" onChange={(event) => updateExperience(index, "organization", event.target.value)} value={item.organization} />{item.highlights.map((highlight, highlightIndex) => <div className="ai-edit-row" key={highlightIndex}><input aria-label={`Highlight ${index + 1}.${highlightIndex + 1}`} maxLength={300} placeholder="What you did" onChange={(event) => updateHighlight(index, highlightIndex, "text", event.target.value)} value={highlight.text} /><input aria-label={`Highlight evidence ${index + 1}.${highlightIndex + 1}`} maxLength={400} placeholder="Exact resume evidence" onChange={(event) => updateHighlight(index, highlightIndex, "evidence", event.target.value)} value={highlight.evidence} /></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.map((entry, itemIndex) => itemIndex === index ? { ...entry, highlights: [...entry.highlights, { text: "", evidence: "" }] } : entry) }))} type="button">Add a highlight</button><button className="ai-remove-button" onClick={() => updateProfile((current) => ({ ...current, experience: current.experience.filter((_, itemIndex) => itemIndex !== index) }))} type="button">Remove experience</button></div>)}<button className="ai-add-button" onClick={() => updateProfile((current) => ({ ...current, experience: [...current.experience, { role: "", organization: "", highlights: [] }] }))} type="button">Add experience</button></div>
+                </> : <>
+                  <p className="ai-profile-summary">{profile.summary}</p>
+                  {profile.skills.length > 0 && <div className="ai-profile-section"><strong>Skills</strong><ul>{profile.skills.map((skill, index) => <li key={`${skill.name}-${index}`}><span>{skill.name}</span><small>“{skill.evidence}”</small></li>)}</ul></div>}
+                  {profile.education.length > 0 && <div className="ai-profile-section"><strong>Education</strong><ul>{profile.education.map((item, index) => <li key={`${item.institution}-${index}`}><span>{[item.credential, item.institution].filter(Boolean).join(" · ")}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
+                  {profile.projects.length > 0 && <div className="ai-profile-section"><strong>Projects</strong><ul>{profile.projects.map((item, index) => <li key={`${item.name}-${index}`}><span>{item.name}: {item.description}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
+                  {profile.experience.length > 0 && <div className="ai-profile-section"><strong>Experience</strong><ul>{profile.experience.map((item, index) => <li key={`${item.role}-${index}`}><span>{[item.role, item.organization].filter(Boolean).join(" · ")}</span>{item.highlights.map((highlight, highlightIndex) => <small key={highlightIndex}>{highlight.text} — “{highlight.evidence}”</small>)}</li>)}</ul></div>}
+                </>}
+                {profile.review_status === "draft" ? <button className="button button-secondary" disabled={aiBusy} onClick={() => void confirmProfile()} type="button">{aiBusy ? <><Spinner dark /> Saving…</> : "Confirm this profile"}</button> : <button className="button button-secondary" disabled={aiBusy} onClick={() => void analyzeResume()} type="button">{aiBusy ? <><Spinner dark /> Analyzing…</> : analysis?.status === "completed" ? "Run analysis again" : analysis?.status === "failed" ? "Retry analysis" : "Analyze resume"}</button>}
+              </div>}
+              {analysis?.status === "completed" && <AnalysisResult analysis={analysis} />}
+              {analysis?.status === "failed" && <p className="inline-message inline-error">The last analysis failed. Retry it after checking the service status.</p>}
             </section>
 
             {confirmDelete ? (
@@ -421,5 +549,26 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
         ) : <div className="empty-state detail-empty"><h3>Resume details unavailable</h3><p>It may have been removed or you may have signed out.</p><button className="button button-secondary" onClick={onClose} type="button">Close</button></div>}
       </div>
     </dialog>
+  );
+}
+
+function AnalysisResult({ analysis }: { analysis: ResumeAnalysis }) {
+  const rubric = [
+    ["Clarity", analysis.rubric_scores.clarity],
+    ["Relevance", analysis.rubric_scores.relevance],
+    ["Evidence", analysis.rubric_scores.evidence],
+    ["Completeness", analysis.rubric_scores.completeness],
+  ] as const;
+  return (
+    <section className="analysis-result" aria-labelledby="analysis-result-title">
+      <div className="analysis-result-heading"><div><span className="eyebrow">SAVED AI ANALYSIS</span><h3 id="analysis-result-title">Resume score</h3></div><strong className="analysis-score">{analysis.overall_score}<small>/100</small></strong></div>
+      <p>{analysis.summary}</p>
+      <div className="analysis-rubric" aria-label="Resume score by rubric category">{rubric.map(([label, score]) => <div key={label}><span>{label}</span><strong>{score}</strong></div>)}</div>
+      {analysis.strengths.length > 0 && <div className="ai-profile-section"><strong>Strengths</strong><ul>{analysis.strengths.map((item, index) => <li key={index}><span>{item.text}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
+      {analysis.weaknesses.length > 0 && <div className="ai-profile-section"><strong>Areas to improve</strong><ul>{analysis.weaknesses.map((item, index) => <li key={index}><span>{item.text}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
+      {analysis.missing_sections.length > 0 && <div className="ai-profile-section"><strong>Information to add</strong><ul>{analysis.missing_sections.map((item, index) => <li key={index}><span>{item.section}</span><small>{item.reason}</small></li>)}</ul></div>}
+      {analysis.recommendations.length > 0 && <div className="ai-profile-section"><strong>Next steps</strong><ul>{analysis.recommendations.map((item, index) => <li key={index}><span>{item.text}</span>{item.evidence && <small>“{item.evidence}”</small>}</li>)}</ul></div>}
+      <p className="analysis-provenance">Rubric {analysis.rubric_version} · {analysis.model_provider} / {analysis.model_name}</p>
+    </section>
   );
 }

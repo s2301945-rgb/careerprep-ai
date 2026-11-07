@@ -192,6 +192,50 @@ export async function verifyMigrationSchema(pool, filename) {
     return result.rows[0]?.complete === true;
   }
 
+  if (filename === "20261107090000_sprint_3_resume_ai.sql") {
+    const result = await pool.query(`
+      SELECT to_regclass('careerprep.resume_profiles') IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'resume_profiles'
+            AND column_name = 'review_status' AND is_nullable = 'NO'
+        )
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'resume_profiles'
+            AND column_name = 'profile_revision' AND data_type = 'integer'
+        )
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'resume_profiles'
+            AND column_name = 'projects' AND data_type = 'jsonb'
+        )
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'resume_analyses'
+            AND column_name = 'rubric_scores' AND data_type = 'jsonb'
+        )
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'careerprep' AND table_name = 'resume_analyses'
+            AND column_name = 'source_snapshot' AND data_type = 'jsonb'
+        )
+        AND EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = to_regclass('careerprep.resume_profiles')
+            AND conname = 'fk_resume_profiles_owned_resume' AND contype = 'f' AND confdeltype = 'c'
+        )
+        AND has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'SELECT')
+        AND has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'INSERT')
+        AND has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'UPDATE')
+        AND has_table_privilege('careerprep_api', 'careerprep.resume_analyses', 'INSERT')
+        AND has_table_privilege('careerprep_api', 'careerprep.resume_analyses', 'UPDATE')
+        AND has_sequence_privilege('careerprep_api', 'careerprep.resume_analyses_id_seq', 'USAGE')
+        AND NOT has_table_privilege('careerprep_api', 'careerprep.resume_profiles', 'DELETE') AS complete
+    `);
+    return result.rows[0]?.complete === true;
+  }
+
   return false;
 }
 
@@ -204,6 +248,14 @@ async function hasMigrationFootprint(pool, filename) {
           OR EXISTS (
             SELECT 1 FROM information_schema.columns
             WHERE table_schema = 'careerprep' AND table_name = 'users' AND column_name = 'auth_user_id'
+          ) AS present
+    `,
+    "20261107090000_sprint_3_resume_ai.sql": `
+      SELECT to_regclass('careerprep.resume_profiles') IS NOT NULL
+          OR EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'careerprep' AND table_name = 'resume_analyses'
+              AND column_name = 'rubric_scores'
           ) AS present
     `,
   }[filename] ?? "SELECT FALSE AS present");

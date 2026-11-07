@@ -1,6 +1,6 @@
 # Resume workspace setup and API
 
-This is the Sprint 2 implementation contract. Later extraction, analysis, matching and interviews remain in the [technical design](02-technical-design.md). Deployment/test evidence belongs in the [sprint record](06-sprint-log.md).
+This is the Sprint 2 resume workspace and Sprint 3 resume AI implementation contract. Matching and mock interviews remain later work in the [technical design](02-technical-design.md). Deployment/test evidence belongs in the [sprint record](06-sprint-log.md).
 
 ## Local setup with an existing development Supabase project
 
@@ -57,6 +57,8 @@ The follow-up migration:
 - Adds a durable cleanup outbox independent of application/Auth cascades and captures private file keys before profile deletion.
 - Creates the `careerprep_api` **NOLOGIN privilege role**, granting only the table/sequence access needed by this API. It does not create or commit a runtime password.
 
+The Sprint 3 migration `20261107090000_sprint_3_resume_ai.sql` creates the one-to-one private resume profile table with review/revision metadata, adds rubric-score/source-snapshot columns to saved analyses, and grants the runtime role only the read/insert/update access and analysis sequence access it needs. `/ready` checks these tables, so a backend release requires this migration to be applied to that same target database first.
+
 A privileged operator should create a separate login and grant it the privilege role, then set its password through the secure database administration flow:
 
 ```sql
@@ -97,10 +99,17 @@ Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authoriz
 | `PATCH /api/v1/resumes/:id` | JSON `{ "display_title": "Graduate applications" }` | 200, `{ "resume": ... }`; no other fields accepted |
 | `GET /api/v1/resumes/:id/file` | Owned decimal ID | 200, original file attachment with private/no-store caching |
 | `DELETE /api/v1/resumes/:id` | Owned decimal ID | 204 once required object cleanup is complete; repeat delete can complete/reuse its retained task |
+| `POST /api/v1/resumes/:id/extract` | Owned resume; no request body | 200, `{ "profile": ... }`; extracts actual PDF/DOCX text, requests a structured profile, validates factual evidence against source text and saves a draft for review |
+| `GET /api/v1/resumes/:id/profile` | Owned decimal ID | 200, `{ "profile": ... }`; never returns the private extracted source text |
+| `PATCH /api/v1/resumes/:id/profile` | JSON `{ "summary", "skills", "education", "projects", "experience" }` | 200, `{ "profile": ... }`; validates structure/evidence and records user confirmation and profile revision |
+| `POST /api/v1/resumes/:id/analysis` | Owned resume with confirmed profile | 201, `{ "analysis": ... }`; validates provider output, computes the aggregate score in the backend and stores provenance and profile revision |
+| `GET /api/v1/resumes/:id/analysis` | Owned decimal ID | 200, `{ "analysis": ... }` for the latest saved attempt, including failed status when generation failed |
 
 A resume representation contains `id`, `display_title`, `original_filename`, `mime_type`, `file_size_bytes`, `extraction_status`, nullable extraction failure/time, and creation/update timestamps. It never reveals a permanent public file URL, storage path, owner ID or credential. A new upload starts with `extraction_status: pending`; it does not call an LLM. Replacing a document means uploading a new resume; renaming changes only its title.
 
-Titles must contain 1–150 characters after trimming; blank/oversized/control-character titles and unknown write fields fail validation. Uploads accept one nonempty PDF/DOCX up to 10 MiB with matching filename, MIME and bounded document-container checks. Deeper readability, encryption, OCR and text extraction checks belong to the later extraction operation; Sprint 2 upload does not claim to have parsed usable resume text.
+The Sprint 3 flow is explicit: extract document text and a draft profile, review and confirm the profile, then request an analysis. PDF text uses Mozilla PDF.js; DOCX text is read from bounded document XML. Image-only/scanned PDFs are not supported and return an extraction error. Extracted text stays in the private database and is never returned to the browser. AI requests cap source/response sizes and provider time, reject malformed output, check factual evidence against normalized source text, and persist failure rather than fabricate a completed score. The backend calculates the arithmetic mean of four validated 0–100 dimensions (clarity, relevance, evidence and completeness). Tests mock Groq and exercise three synthetic cases in `backend/test/fixtures/resume-evaluation-set.json`; they do not call a paid API.
+
+Titles must contain 1–150 characters after trimming; blank/oversized/control-character titles and unknown write fields fail validation. Uploads accept one nonempty PDF/DOCX up to 10 MiB with matching filename, MIME and bounded document-container checks. Extraction rejects unreadable/empty text; OCR for image-only PDFs is unsupported.
 
 JSON mutations require `Content-Type: application/json`; file uploads require `multipart/form-data` with the browser-generated boundary. Request bodies, ZIP expansion and dependency timeouts are bounded. Only exact configured frontend origins receive access, and CORS does not replace token verification. Non-owned and missing resources both return 404.
 
@@ -126,6 +135,7 @@ If deleting the database record succeeds but Storage fails, the API returns retr
 ```powershell
 pnpm lint
 pnpm build
+npx tsc --noEmit
 npm --prefix backend run check
 npm --prefix backend test
 ```

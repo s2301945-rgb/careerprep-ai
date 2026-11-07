@@ -8,8 +8,14 @@ import { createSupabaseAuth, requireIdentity } from "./auth.js";
 import { createPool, createRepository } from "./database.js";
 import { createSupabaseStorage } from "./storage.js";
 import { createGroqProbe, createProbeRateLimiter } from "./ai.js";
+import {
+  createResumeAI,
+  validateResumeProfile,
+  PROFILE_SCHEMA_VERSION,
+  ANALYSIS_RUBRIC_VERSION,
+} from "./resume-ai.js";
 import { startCleanupWorker, finishResumeDeletion, cleanupFailureError } from "./cleanup.js";
-import { safeOriginalFilename, validateResumeFile } from "./documents.js";
+import { extractResumeText, safeOriginalFilename, validateResumeFile } from "./documents.js";
 import { parseResumeMultipart } from "./multipart.js";
 import { readBoundedRequestBody } from "./request-body.js";
 import { ApiError, sendError } from "./errors.js";
@@ -232,6 +238,7 @@ export function createApp({
   auth = null,
   storage = null,
   aiProbe = null,
+  resumeAI = null,
   rateLimiter = createProbeRateLimiter(),
   fetchImpl = fetch,
   logger = console,
@@ -243,6 +250,11 @@ export function createApp({
     fetchImpl,
   });
   const groqProbe = aiProbe ?? createGroqProbe({
+    apiKey: config.groqApiKey,
+    model: config.groqModel,
+    fetchImpl,
+  });
+  const resumeAiService = resumeAI ?? createResumeAI({
     apiKey: config.groqApiKey,
     model: config.groqModel,
     fetchImpl,
@@ -294,6 +306,124 @@ export function createApp({
         const user = await requireRepository(repository).resolveUser(identity);
         sendJson(request, response, 200, { user }, corsHeaders, requestId);
         return;
+      }
+
+      const aiResumeMatch = /^\/api\/v1\/resumes\/([^/]+)\/(extract|profile|analysis)$/.exec(url.pathname);
+      if (aiResumeMatch) {
+        const identity = await requireIdentity(request, authVerifier);
+        const user = await requireRepository(repository).resolveUser(identity);
+        const resumeId = parseIdentifier(aiResumeMatch[1]);
+        const action = aiResumeMatch[2];
+        const repo = requireRepository(repository);
+
+        if (action === "extract" && request.method === "POST") {
+          if (!storage) throw new ApiError(503, "DEPENDENCY_UNAVAILABLE", "Private resume storage is not configured.", true);
+          const resume = await repo.findResumeFile(user.id, resumeId);
+          if (!resume) throw new ApiError(404, "RESUME_NOT_FOUND", "The requested resume was not found.");
+          try {
+            const object = await storage.download(resume.storage_path);
+            const sourceText = await extractResumeText({ mimeType: resume.mime_type, buffer: object.buffer });
+            if (!await repo.storeResumeText(user.id, resumeId, sourceText)) {
+              throw new ApiError(404, "RESUME_NOT_FOUND", "The requested resume was not found.");
+            }
+            const generated = await resumeAiService.extractProfile(sourceText);
+            const profile = await repo.saveExtractedProfile(user.id, resumeId, {
+              sourceText,
+              profile: generated.result,
+              schemaVersion: PROFILE_SCHEMA_VERSION,
+              provider: generated.provider,
+              model: generated.model,
+              promptVersion: generated.promptVersion,
+            });
+            if (!profile) throw new ApiError(404, "RESUME_NOT_FOUND", "The requested resume was not found.");
+            sendJson(request, response, 200, { profile }, corsHeaders, requestId);
+            return;
+          } catch (error) {
+            if (error?.code === "TEXT_EXTRACTION_FAILED" || error?.code === "DOCUMENT_INVALID" || error?.code === "DOCUMENT_TOO_COMPLEX") {
+              await repo.failResumeExtraction(user.id, resumeId, error.code).catch(() => {});
+            }
+            throw error;
+          }
+        }
+
+        if (action === "profile" && request.method === "GET") {
+          const profile = await repo.getResumeProfile(user.id, resumeId);
+          if (!profile) throw new ApiError(404, "PROFILE_NOT_FOUND", "Extract a resume profile before reviewing it.");
+          sendJson(request, response, 200, { profile }, corsHeaders, requestId);
+          return;
+        }
+
+        if (action === "profile" && request.method === "PATCH") {
+          const body = await readJsonBody(request);
+          assertAllowedKeys(body, ["summary", "skills", "education", "projects", "experience"], "Only the extracted profile fields may be changed.");
+          const context = await repo.getConfirmedResumeContext(user.id, resumeId);
+          if (!context) throw new ApiError(404, "PROFILE_NOT_FOUND", "Extract a resume profile before reviewing it.");
+          const profileInput = {
+            summary: body.summary,
+            skills: body.skills,
+            education: body.education,
+            projects: body.projects,
+            experience: body.experience,
+          };
+          let validated;
+          try {
+            validated = validateResumeProfile(profileInput, context.sourceText);
+          } catch (error) {
+            if (error?.code === "AI_RESPONSE_INVALID" || error?.code === "AI_EVIDENCE_INVALID") {
+              throw new ApiError(422, "VALIDATION_FAILED", "The profile fields or evidence are invalid. Review the extracted details and try again.");
+            }
+            throw error;
+          }
+          const profile = await repo.confirmResumeProfile(user.id, resumeId, validated);
+          if (!profile) throw new ApiError(404, "PROFILE_NOT_FOUND", "Extract a resume profile before reviewing it.");
+          sendJson(request, response, 200, { profile }, corsHeaders, requestId);
+          return;
+        }
+
+        if (action === "analysis" && request.method === "GET") {
+          const analysis = await repo.getLatestResumeAnalysis(user.id, resumeId);
+          if (!analysis) throw new ApiError(404, "ANALYSIS_NOT_FOUND", "No analysis has been run for this resume.");
+          sendJson(request, response, 200, { analysis }, corsHeaders, requestId);
+          return;
+        }
+
+        if (action === "analysis" && request.method === "POST") {
+          const context = await repo.getConfirmedResumeContext(user.id, resumeId);
+          if (!context) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Extract and confirm the resume profile before analysis.");
+          if (context.profile.review_status !== "confirmed") {
+            throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Review and confirm the extracted profile before analysis.");
+          }
+          if (typeof context.sourceText !== "string" || !context.sourceText.trim()) {
+            throw new ApiError(409, "EXTRACTION_REQUIRED", "Extract readable resume text before analysis.");
+          }
+          const analysisId = await repo.createResumeAnalysisRun(user.id, resumeId, {
+            profile_revision: context.profile.profile_revision,
+            profile_schema_version: context.profile.schema_version,
+            rubric_version: ANALYSIS_RUBRIC_VERSION,
+          });
+          if (!analysisId) throw new ApiError(409, "PROFILE_REVIEW_REQUIRED", "Review and confirm the extracted profile before analysis.");
+          try {
+            const generated = await resumeAiService.analyze(context.sourceText, context.profile);
+            const analysis = await repo.completeResumeAnalysis(user.id, resumeId, analysisId, {
+              result: generated.result,
+              provider: generated.provider,
+              model: generated.model,
+              promptVersion: generated.promptVersion,
+              rubricVersion: ANALYSIS_RUBRIC_VERSION,
+            });
+            if (!analysis) throw new ApiError(409, "ANALYSIS_STATE_CHANGED", "This analysis could not be saved. Try again.", true);
+            sendJson(request, response, 201, { analysis }, corsHeaders, requestId);
+            return;
+          } catch (error) {
+            const errorCode = typeof error?.code === "string" && /^[A-Z0-9_-]{1,100}$/.test(error.code)
+              ? error.code
+              : "AI_FAILED";
+            await repo.failResumeAnalysis(user.id, resumeId, analysisId, errorCode).catch(() => {});
+            throw error;
+          }
+        }
+
+        throw new ApiError(405, "METHOD_NOT_ALLOWED", "This method is not supported for the requested resume AI route.");
       }
 
       if (url.pathname === RESUME_BASE_PATH && request.method === "POST") {
@@ -463,7 +593,8 @@ export function startBackend({ config = getConfig(), logger = console } = {}) {
     supabaseAnonKey: config.supabaseAnonKey,
   });
   const aiProbe = createGroqProbe({ apiKey: config.groqApiKey, model: config.groqModel });
-  const app = createApp({ config, repository, auth, storage, aiProbe, logger });
+  const resumeAI = createResumeAI({ apiKey: config.groqApiKey, model: config.groqModel });
+  const app = createApp({ config, repository, auth, storage, aiProbe, resumeAI, logger });
   const stopCleanupWorker = repository ? startCleanupWorker({ repository, storage, logger }) : () => {};
   app.requestTimeout = 30_000;
   app.headersTimeout = 10_000;
