@@ -39,6 +39,25 @@ test("Week 3 evaluation set keeps profile and assessment claims grounded", () =>
   }
 });
 
+test("profiles keep grounded education and achievements when a school or role is unstated", () => {
+  const source = "Computer Systems Servicing NC II\nCoordinated three student events with 200 attendees.";
+  const content = {
+    summary: "Candidate with a certification and event experience.",
+    skills: [],
+    education: [{ credential: "Computer Systems Servicing NC II", institution: "", evidence: "Computer Systems Servicing NC II" }],
+    experience: [{ role: "", organization: "", highlights: [{ text: "Coordinated three events.", evidence: "Coordinated three student events with 200 attendees." }] }],
+  };
+  const profile = validateResumeProfile(content, source);
+  assert.deepEqual(profile.education, content.education);
+  assert.deepEqual(profile.experience, content.experience);
+  assert.throws(() => validateResumeProfile({
+    ...content, education: [{ ...content.education[0], credential: "" }],
+  }, source), { code: "AI_RESPONSE_INVALID" });
+  assert.throws(() => validateResumeProfile({
+    ...content, experience: [{ role: "", organization: "", highlights: [] }],
+  }, source), { code: "AI_RESPONSE_INVALID" });
+});
+
 test("profile and analysis validators reject invented evidence and unknown skills", () => {
   const item = evaluationSet[0];
   assert.throws(() => validateResumeProfile({
@@ -78,6 +97,29 @@ test("Groq profile and analysis calls are mocked, JSON-only, and schema validate
   assert.equal(Object.hasOwn(JSON.parse(sent[0].options.body), "store"), false);
   assert.equal(profile.provider, "groq");
   assert.equal(analysis.result.overall_score, 73);
+});
+
+test("the default Groq model requests strict profile and analysis schemas and still validates evidence", async () => {
+  const item = evaluationSet[0];
+  const formats = [];
+  const ai = createResumeAI({
+    apiKey: "test-key", model: "openai/gpt-oss-20b",
+    fetchImpl: async (_url, options) => {
+      const { response_format: format } = JSON.parse(options.body);
+      formats.push(format);
+      const content = formats.length === 1
+        ? profileFor(item)
+        : { ...analysisFor(item), strengths: [{ text: "Made up.", evidence: "This is not in the resume." }] };
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }));
+    },
+  });
+  const { result: profile } = await ai.extractProfile(item.resume_text);
+  await assert.rejects(ai.analyze(item.resume_text, profile), { code: "AI_EVIDENCE_INVALID" });
+  assert.deepEqual(formats.map(({ type, json_schema }) => [type, json_schema.name, json_schema.strict]), [
+    ["json_schema", "resume_profile", true],
+    ["json_schema", "resume_analysis", true],
+  ]);
+  assert.equal(formats[1].json_schema.schema.properties.rubric.properties.clarity.type, "integer");
 });
 
 test("provider errors and malformed JSON fail without returning a success-shaped result", async () => {

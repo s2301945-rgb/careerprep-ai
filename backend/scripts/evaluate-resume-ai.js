@@ -19,8 +19,10 @@ async function main() {
   const ai = createResumeAI({ apiKey: groqApiKey, model: groqModel });
   let passed = 0;
   for (const item of cases) {
+    let stage = "profile";
     try {
       const { result: profile } = await ai.extractProfile(item.resume_text);
+      stage = "analysis";
       const { result: analysis } = await ai.analyze(item.resume_text, profile);
       const hasSkill = profile.skills.some(({ name }) => normalize(name) === normalize(item.expected_skill));
       const hasEvidence = analysis.strengths.some(({ evidence }) =>
@@ -29,7 +31,7 @@ async function main() {
       if (hasSkill && hasEvidence) passed += 1;
       console.log(item.id, { expectedSkill: hasSkill, achievementEvidence: hasEvidence });
     } catch (error) {
-      console.error(item.id, error instanceof ApiError ? error.code : "EVALUATION_FAILED");
+      console.error(item.id, stage, error instanceof ApiError ? error.code : "EVALUATION_FAILED");
     }
   }
   console.log(`Resume AI evaluation: ${passed}/${cases.length} passed.`);
