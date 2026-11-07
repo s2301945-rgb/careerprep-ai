@@ -94,7 +94,7 @@ export function ServiceDiagnostics() {
         </div>
         <div className="diagnostic-item">
           <div className="diagnostic-topline"><span>Project metadata</span><StatusPill state={metadataState} /></div>
-          <p>{health?.message ?? (metadataState === "checking" ? "Checking public Supabase project metadata." : metadataState === "not_configured" ? "Public Supabase metadata is not configured." : "The public Supabase metadata check is unavailable.")}</p>
+          <p>{health?.message ?? (metadataState === "checking" ? "Checking public Supabase project metadata." : metadataState === "connected" ? "Public Supabase project metadata is available." : metadataState === "not_configured" ? "Public Supabase metadata is not configured." : "The public Supabase metadata check is unavailable.")}</p>
         </div>
         <div className="diagnostic-item diagnostic-ai">
           <div className="diagnostic-topline"><span>AI provider</span><StatusPill state={aiState} /></div>

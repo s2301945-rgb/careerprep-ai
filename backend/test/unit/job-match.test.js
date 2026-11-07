@@ -36,3 +36,9 @@ test("job matching sends a schema-constrained request and validates the provider
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.messages[1].content.includes(job), true);
 });
+
+test("job matching reports a response-stream failure as retryable provider unavailability", async () => {
+  const match = createJobMatcher({ apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async () => new Response(new ReadableStream({ pull() { throw new Error("connection lost"); } })) });
+  await assert.rejects(match(job, resume), (error) => error.code === "AI_PROVIDER_UNAVAILABLE" && error.retryable === true);
+});

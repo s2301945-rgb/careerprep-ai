@@ -312,7 +312,12 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   const savedMatch = (await matchResponse.json()).match;
   assert.equal(savedMatch.match_score, 50);
   assert.equal(savedMatch.requirement_assessments.length, 2);
+  assert.equal(savedMatch.is_stale, false);
   assert.equal((await repository.latestJobMatch(userA.id, firstResume.id, savedJob.id)).id, savedMatch.id);
+  const revisedProfile = await repository.confirmResumeProfile(userA.id, firstResume.id, {
+    ...profileContent, summary: "Updated entry-level developer summary.",
+  });
+  assert.equal((await repository.latestJobMatch(userA.id, firstResume.id, savedJob.id)).is_stale, true);
 
   const interviewResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/interviews`, {
     method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
@@ -344,7 +349,7 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   assert.equal(finished.overall_score, 75.05);
   assert.equal((await repository.listInterviews(userA.id, firstResume.id))[0].id, interview.id);
 
-  const staleMatchId = await repository.createJobMatchRun(userA.id, firstResume.id, savedJob.id, confirmedProfile.profile_revision);
+  const staleMatchId = await repository.createJobMatchRun(userA.id, firstResume.id, savedJob.id, revisedProfile.profile_revision);
   await pool.query("ALTER TABLE careerprep.job_matches DISABLE TRIGGER trg_job_matches_touch");
   await pool.query("UPDATE careerprep.job_matches SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = $1", [staleMatchId]);
   await pool.query("ALTER TABLE careerprep.job_matches ENABLE TRIGGER trg_job_matches_touch");

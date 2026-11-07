@@ -99,6 +99,12 @@ export function createInterviewAI({ apiKey, model, fetchImpl = fetch }) {
         if (size > 128 * 1024) { await reader.cancel(); throw new ApiError(502, "AI_RESPONSE_INVALID", "Interview AI returned too much data."); }
         chunks.push(Buffer.from(value));
       }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (signal.aborted || error?.name === "TimeoutError" || error?.name === "AbortError") {
+        throw new ApiError(504, "AI_TIMEOUT", "Interview AI timed out. Try again.", true);
+      }
+      throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Interview AI stopped responding. Try again.", true);
     } finally { reader.releaseLock(); }
     try { return JSON.parse(JSON.parse(Buffer.concat(chunks, size).toString("utf8")).choices[0].message.content); }
     catch { throw new ApiError(502, "AI_RESPONSE_INVALID", "Interview AI returned malformed data."); }

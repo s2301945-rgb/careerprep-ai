@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      SMOKE_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL || 'https://careerprep-ai-ten.vercel.app' }}
-      SMOKE_API_URL: ${{ vars.PRODUCTION_API_URL || 'https://careerprep-ai-production.up.railway.app' }}
+      SMOKE_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL }}
+      SMOKE_API_URL: ${{ vars.PRODUCTION_API_URL }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v4

@@ -705,7 +705,8 @@ export function createRepository(pool) {
                AND p.profile_revision = m.profile_revision)
          RETURNING id::text AS id, resume_id::text AS resume_id,
            job_description_id::text AS job_description_id, status, match_score::float8 AS match_score,
-           requirement_assessments, explanation, rubric_version, created_at, completed_at`,
+           requirement_assessments, explanation, rubric_version, created_at, completed_at,
+           false AS is_stale`,
         [ownerUserId, matchId, result.match_score, JSON.stringify(result.matching_skills), JSON.stringify(result.missing_skills),
           result.explanation, JSON.stringify(result.requirements), result.rubric_version, result.model_provider,
           result.model_name, result.prompt_version],
@@ -729,12 +730,15 @@ export function createRepository(pool) {
         [ownerUserId, resumeId, jobId],
       );
       const result = await pool.query(
-        `SELECT id::text AS id, resume_id::text AS resume_id,
-           job_description_id::text AS job_description_id, status, match_score::float8 AS match_score,
-           requirement_assessments, explanation, rubric_version, error_code, created_at, completed_at
-         FROM careerprep.job_matches
-         WHERE user_id = $1 AND resume_id = $2 AND job_description_id = $3
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        `SELECT m.id::text AS id, m.resume_id::text AS resume_id,
+           m.job_description_id::text AS job_description_id, m.status, m.match_score::float8 AS match_score,
+           m.requirement_assessments, m.explanation, m.rubric_version, m.error_code,
+           m.created_at, m.completed_at,
+           (p.profile_revision IS DISTINCT FROM m.profile_revision OR p.review_status <> 'confirmed') AS is_stale
+         FROM careerprep.job_matches m
+         LEFT JOIN careerprep.resume_profiles p ON p.resume_id = m.resume_id AND p.user_id = m.user_id
+         WHERE m.user_id = $1 AND m.resume_id = $2 AND m.job_description_id = $3
+         ORDER BY m.created_at DESC, m.id DESC LIMIT 1`,
         [ownerUserId, resumeId, jobId],
       );
       return result.rows[0] ?? null;

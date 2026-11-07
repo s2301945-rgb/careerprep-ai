@@ -1,6 +1,6 @@
 # Connect Supabase, Railway and Vercel from VS Code
 
-The CLIs are installed on the setup computer. Supabase is authenticated, linked and migrated. Vercel is authenticated as `xiee-t`, and the replacement `careerprep-ai` project is linked to this folder. Railway is authenticated, but its outage currently blocks creating the replacement project. You do not need another Supabase database.
+This guide records the earlier setup work. Recheck the live project settings before any release. The read-only Week 4 check found an existing Railway `capable-unity` project with a `careerprep-ai` production service sourced from `main`; it did not find configured database, Supabase Auth/Storage, or Groq key variables. The Railway service currently checks `/`, while the repository declares `/ready`. A successful Railway deployment alone does not establish that the private application is ready.
 
 ## 1. Open the project terminal
 
@@ -26,30 +26,22 @@ The project is `pvarmnhsotxuoqtvcwcb`. All three migration versions should appea
 
 Auth confirmation returns to `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. The declared settings are in [config.toml](../supabase/config.toml). Review a diff before any future push; unrelated remote settings should stay untouched.
 
-## 3. Create Railway after its outage ends
+## 3. Configure the existing Railway service
 
-Check the [Railway status page](https://status.railway.com/) first. The last attempt created no project and returned `Deploys have been paused temporarily`.
+The earlier outage and project-creation failure are historical. Inspect the existing project and service before making changes:
 
 ```powershell
 railway whoami
 railway list --json
 ```
 
-If the replacement project still does not appear, create it and its backend service:
-
-```powershell
-railway init --name careerprep-ai
-railway add --service careerprep-api
-railway status
-```
-
-If it already exists, select it rather than creating another:
+Select the existing project rather than creating another:
 
 ```powershell
 railway link
 ```
 
-Choose the project, `production` environment and `careerprep-api` service. The CLI link connects this VS Code folder. In the Railway service's **Variables** tab, add the backend settings listed in [the setup guide](08-setup-and-api.md). Copy values privately from `backend/.env`; do not paste the whole file into a terminal command or commit it. Set `NODE_ENV=production`, use the limited runtime `DATABASE_URL`, and set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt`. Add exact approved frontend origins to `FRONTEND_URL`; include `https://careerprep-ai-seven.vercel.app` and `https://careerprep-ai-xiee-t.vercel.app`. Keep the service key and Groq key on Railway only. Do not add the operator/migration credential.
+Choose `capable-unity`, the `production` environment and the existing `careerprep-ai` service. In its **Variables** tab, configure the backend settings listed in [the setup guide](08-setup-and-api.md) through a private channel. Set `NODE_ENV=production`, use the limited runtime `DATABASE_URL`, and set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt`. Add only the exact approved frontend origins to `FRONTEND_URL`. Keep the service key and Groq key on Railway only. Do not add the operator/migration credential. Set the service health check to `/ready` and verify its response after the reviewed code and migrations are deployed.
 
 Use the checked commit as the deployment source. A source-only archive excludes ignored credentials and local dependencies:
 
@@ -58,11 +50,11 @@ $deployStage = Join-Path $env:TEMP ('careerprep-deploy-' + [guid]::NewGuid())
 $deployArchive = $deployStage + '.zip'
 git archive --format=zip --output=$deployArchive HEAD backend
 Expand-Archive -LiteralPath $deployArchive -DestinationPath $deployStage
-railway up "$deployStage/backend" --path-as-root --service careerprep-api --detach
-railway domain --service careerprep-api
+railway up "$deployStage/backend" --path-as-root --service careerprep-ai --detach
+railway domain --service careerprep-ai
 ```
 
-Record the generated domain. Check `https://YOUR-DOMAIN/ready`: it must return HTTP 200 with a connected database. `/api/v1/resumes` without a token must return 401. `/ready` is also the deployment health check. After the reviewed PR stack lands, connect the GitHub source to `main`, Root Directory `/backend`, and enable **Wait for CI**. Manual upload by itself does not establish continuous deployment.
+Record the verified domain. Check `https://YOUR-DOMAIN/ready`: it must return HTTP 200 with a connected database. `/api/v1/resumes` without a token must return 401. The live service is already sourced from `main`; verify Root Directory `/backend` and enable **Wait for CI** after the reviewed PR stack lands. Do not run the manual upload until the release is approved.
 
 ## 4. Finish Vercel
 

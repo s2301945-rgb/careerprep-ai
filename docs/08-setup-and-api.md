@@ -108,7 +108,7 @@ Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authoriz
 | `GET /api/v1/resumes/:id/analysis` | Owned decimal ID | 200, `{ "analysis": ... }` for the latest saved attempt, including failed status when generation failed |
 | `GET /api/v1/jobs` | Verified token | 200, `{ "jobs": [...] }` with up to 50 owned saved jobs |
 | `POST /api/v1/jobs` | JSON `{ "job_title"?, "company_name"?, "description_text" }` | 201, `{ "job": ... }`; description is required, 1–30,000 characters |
-| `GET /api/v1/resumes/:id/jobs/:jobId/match` | Owned resume and job | 200, `{ "match": ... or null }` for latest attempt |
+| `GET /api/v1/resumes/:id/jobs/:jobId/match` | Owned resume and job | 200, `{ "match": ... or null }` for latest attempt; `is_stale` flags a comparison made before the current profile revision |
 | `POST /api/v1/resumes/:id/jobs/:jobId/match` | Confirmed resume profile and owned job | 201, `{ "match": ... }`; saved requirement assessments and backend-computed score, or null score when no usable requirements exist |
 | `GET /api/v1/resumes/:id/interviews` | Owned resume | 200, `{ "interviews": [...] }` with up to 20 recent sessions |
 | `POST /api/v1/resumes/:id/interviews` | JSON `{ "job_id": "..." or null }`; confirmed resume profile | 201, `{ "interview": ... }` with five saved questions; job is optional |

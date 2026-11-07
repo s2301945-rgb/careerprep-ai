@@ -103,6 +103,12 @@ export function createJobMatcher({ apiKey, model, fetchImpl = fetch }) {
         }
         chunks.push(Buffer.from(value));
       }
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (signal.aborted || error?.name === "TimeoutError" || error?.name === "AbortError") {
+        throw new ApiError(504, "AI_TIMEOUT", "Job matching timed out. Try again.", true);
+      }
+      throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Job matching AI stopped responding. Try again.", true);
     } finally { reader.releaseLock(); }
     const raw = Buffer.concat(chunks, size).toString("utf8");
     let output;

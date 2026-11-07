@@ -53,3 +53,9 @@ test("interview AI evaluates a typed answer and rejects malformed provider outpu
   assert.equal(body.messages[1].content.includes("I planned the project"), true);
   assert.throws(() => validateInterviewEvaluation({ ...evaluation, examples: 110 }, "behavioral"));
 });
+
+test("interview AI reports an interrupted response body as retryable", async () => {
+  const service = createInterviewAI({ apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async () => new Response(new ReadableStream({ pull() { throw new Error("connection lost"); } })) });
+  await assert.rejects(service.generate(5, resume, job), (error) => error.code === "AI_PROVIDER_UNAVAILABLE" && error.retryable === true);
+});

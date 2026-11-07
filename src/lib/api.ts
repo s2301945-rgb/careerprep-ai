@@ -69,6 +69,7 @@ export type SavedJob = {
 export type JobMatch = {
   id: string;
   status: "processing" | "completed" | "failed";
+  is_stale: boolean;
   match_score: number | null;
   requirement_assessments: Array<{
     requirement: string;
