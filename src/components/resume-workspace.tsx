@@ -132,7 +132,7 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
       return;
     }
     if (file.size === 0 || file.size > resumeLimitBytes) {
-      setUploadError("Choose a file that is smaller than 10 MB.");
+      setUploadError("Choose a file that is 10 MiB or smaller.");
       return;
     }
     if (title.length > 150) {
