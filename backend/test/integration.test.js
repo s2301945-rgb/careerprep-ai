@@ -229,6 +229,7 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   });
   assert.equal(savedProfile.review_status, "draft");
   assert.equal(savedProfile.profile_revision, 1);
+  const userB = await repository.resolveUser(identities.b);
   assert.equal(await repository.getResumeProfile(userB.id, firstResume.id), null);
   assert.equal(await repository.createResumeAnalysisRun(userA.id, firstResume.id, { profile_revision: 1 }), null);
   const confirmedProfile = await repository.confirmResumeProfile(userA.id, firstResume.id, profileContent);

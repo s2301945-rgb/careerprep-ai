@@ -471,10 +471,12 @@ test("file requests refuse legacy storage disks instead of reading a colliding S
   });
   state.storage.set("v1/same-key", PDF);
 
-  const response = await fetch(`${baseUrl}/api/v1/resumes/998/file`, { headers: authHeader() });
-  assert.equal(response.status, 503);
-  assert.equal((await response.json()).error.code, "FILE_UNAVAILABLE");
-  assert.equal(state.lastDownloadPath, null);
+  for (const [path, method] of [["file", "GET"], ["extract", "POST"]]) {
+    const response = await fetch(`${baseUrl}/api/v1/resumes/998/${path}`, { method, headers: authHeader() });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, "FILE_UNAVAILABLE");
+    assert.equal(state.lastDownloadPath, null);
+  }
 });
 
 test("delete returns retryable cleanup status and completes idempotently after storage recovers", async () => {

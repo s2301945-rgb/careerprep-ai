@@ -75,6 +75,7 @@ test("Groq profile and analysis calls are mocked, JSON-only, and schema validate
   assert.equal(sent[0].url, "https://api.groq.com/openai/v1/chat/completions");
   assert.equal(sent[0].options.headers.Authorization, "Bearer test-key");
   assert.deepEqual(JSON.parse(sent[0].options.body).response_format, { type: "json_object" });
+  assert.equal(Object.hasOwn(JSON.parse(sent[0].options.body), "store"), false);
   assert.equal(profile.provider, "groq");
   assert.equal(analysis.result.overall_score, 73);
 });
@@ -103,6 +104,29 @@ test("provider errors and malformed JSON fail without returning a success-shaped
     fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), { status: 200 }),
   });
   await assert.rejects(malformed.extractProfile(evaluationSet[0].resume_text), { code: "AI_RESPONSE_INVALID" });
+});
+
+test("provider timeouts and interrupted response bodies return retryable AI errors", async () => {
+  const resumeText = evaluationSet[0].resume_text;
+  const base = { apiKey: "test-key", model: "test/model" };
+  const timeout = createResumeAI({
+    ...base,
+    fetchImpl: async () => { throw new DOMException("timed out", "TimeoutError"); },
+  });
+  await assert.rejects(timeout.extractProfile(resumeText), { status: 504, code: "AI_TIMEOUT", retryable: true });
+
+  for (const [error, status, code] of [
+    [new DOMException("body aborted", "AbortError"), 504, "AI_TIMEOUT"],
+    [new TypeError("connection closed"), 503, "AI_PROVIDER_UNAVAILABLE"],
+  ]) {
+    const ai = createResumeAI({
+      ...base,
+      fetchImpl: async () => new Response(new ReadableStream({
+        pull(controller) { controller.error(error); },
+      })),
+    });
+    await assert.rejects(ai.extractProfile(resumeText), { status, code, retryable: true });
+  }
 });
 
 test("missing Groq credentials are reported honestly without making a request", async () => {

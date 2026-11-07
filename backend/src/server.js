@@ -320,6 +320,9 @@ export function createApp({
           if (!storage) throw new ApiError(503, "DEPENDENCY_UNAVAILABLE", "Private resume storage is not configured.", true);
           const resume = await repo.findResumeFile(user.id, resumeId);
           if (!resume) throw new ApiError(404, "RESUME_NOT_FOUND", "The requested resume was not found.");
+          if (resume.storage_disk !== "supabase") {
+            throw new ApiError(503, "FILE_UNAVAILABLE", "The stored resume is not available.", true);
+          }
           try {
             const object = await storage.download(resume.storage_path);
             const sourceText = await extractResumeText({ mimeType: resume.mime_type, buffer: object.buffer });
