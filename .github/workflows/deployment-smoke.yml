@@ -33,5 +33,6 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
       - name: Check frontend, database read and protected API
         run: node scripts/smoke.mjs
