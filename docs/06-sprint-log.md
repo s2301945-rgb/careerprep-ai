@@ -90,4 +90,18 @@ The November 10 audit confirmed that the Week 1 frontend branch is published and
 
 The November 10 follow-up fixes retry buttons that reloaded the list after a saved comparison or interview failed to load. The interview now reloads after an answer evaluation error so users can retry the saved text. A local browser run with mock Auth and API responses injected each of the three failures and verified recovery, including the original answer text and desktop/mobile rendering. This verifies UI behavior with synthetic data.
 
+### Week 4 follow-up verification
+
+The frontend fix is `1cbeb75`. The release candidate containing it, `ff25c94`, passed all three jobs in [Actions run 42846519835](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/42846519835).
+
+| Check | Result |
+| --- | --- |
+| Frontend | Dependency install, lint, and production build passed. |
+| Backend | API behavior and PostgreSQL migration, grant, and persistence checks passed. |
+| Prototype | Production build passed. |
+| Vercel | The GitHub commit status reported a successful preview build. |
+| Release | PR #30 remained a draft with no submitted reviews. Hosted sign-in, live Week 4 AI checks, and production acceptance are pending. |
+
+For a manual walkthrough in a configured development environment, open a résumé with a confirmed profile, save a job description, and run a comparison. Start a mock interview and submit an answer. In the controlled browser test, a temporary read failure appeared in each saved detail view. Its retry reloaded that detail, and a failed answer evaluation offered a retry with the saved text.
+
 Read-only GitHub inspection on November 8 found PRs #21, #22, #23, #24, #28 and #29 open with no submitted reviews; #21 currently reports a merge conflict with `main`. Read-only Railway inspection found only the `production` environment in project `capable-unity`. Its `careerprep-ai` service deploys from `main`, uses `/` as the health check, and lists only `FRONTEND_URL` and `GROQ_MODEL` as service variable names. No Week 4 code, migration or credential was deployed during this check. The production service cannot be counted as a ready Week 4 backend from this configuration alone; its private database, Auth, Storage and Groq settings still need provisioning and a successful `/ready` check after reviewed integration. These observations do not replace a hosted acceptance test.

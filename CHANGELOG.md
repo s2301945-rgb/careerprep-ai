@@ -6,6 +6,7 @@
 - Added text extraction, a draft profile users can edit and confirm, and saved AI analysis with cited evidence and rubric scores.
 - Added mocked backend tests, disposable PostgreSQL integration, and a live Groq evaluation with synthetic resumes.
 - Started Week 4 hardening for AI request controls, workspace error and loading states, CI, and release documentation.
+- Fixed retries for saved job comparisons and interviews. Failed interview evaluations can retry the original saved answer.
 - Added saved job descriptions, grounded requirement-by-requirement resume matching, and backend-calculated practice scores.
 - Added five-question text mock interviews with saved answers, rubric feedback, history, and a failed-evaluation retry using the same answer.
 - Added owner-scoped API and PostgreSQL integration coverage for matching and interviews. Live Groq and hosted signed-in acceptance remain pending.
