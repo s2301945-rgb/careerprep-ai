@@ -10,22 +10,25 @@ export function JobMatchPanel({ resumeId }: { resumeId: string }) {
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [matchLoading, setMatchLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [jobsError, setJobsError] = useState("");
+  const [matchError, setMatchError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const matchRequest = useRef(0);
 
   const refreshJobs = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    setJobsLoading(true);
+    setJobsError("");
     try {
       const result = await listJobs();
       setJobs(result.jobs);
       setJobId((current) => current || result.jobs[0]?.id || "");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Saved jobs could not be loaded.");
-    } finally { setLoading(false); }
+      setJobsError(reason instanceof Error ? reason.message : "Saved jobs could not be loaded.");
+    } finally { setJobsLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -36,14 +39,14 @@ export function JobMatchPanel({ resumeId }: { resumeId: string }) {
   const refreshMatch = useCallback(async () => {
     const request = ++matchRequest.current;
     if (!jobId) { setMatch(null); return; }
-    setLoading(true);
-    setError("");
+    setMatchLoading(true);
+    setMatchError("");
     try {
       const result = await getJobMatch(resumeId, jobId);
       if (request === matchRequest.current) setMatch(result.match);
     } catch (reason) {
-      if (request === matchRequest.current) setError(reason instanceof Error ? reason.message : "The saved comparison could not be loaded.");
-    } finally { if (request === matchRequest.current) setLoading(false); }
+      if (request === matchRequest.current) setMatchError(reason instanceof Error ? reason.message : "The saved comparison could not be loaded.");
+    } finally { if (request === matchRequest.current) setMatchLoading(false); }
   }, [jobId, resumeId]);
 
   useEffect(() => {
@@ -53,44 +56,49 @@ export function JobMatchPanel({ resumeId }: { resumeId: string }) {
 
   async function addJob(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setActionError(""); setNotice("");
     try {
       const result = await saveJob({ job_title: title, company_name: company, description_text: description });
+      matchRequest.current += 1;
+      setMatch(null);
+      setMatchError("");
       setJobs((current) => [result.job, ...current]);
       setJobId(result.job.id);
       setTitle(""); setCompany(""); setDescription("");
       setNotice("Job description saved. You can now compare it with this resume.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "The job could not be saved."); }
+    } catch (reason) { setActionError(reason instanceof Error ? reason.message : "The job could not be saved."); }
     finally { setBusy(false); }
   }
 
   async function compare() {
     if (!jobId) return;
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setActionError(""); setNotice("");
     try {
       const result = await runJobMatch(resumeId, jobId);
       setMatch(result.match);
       setNotice(result.match.match_score === null ? "No usable job requirements were found. No score was assigned." : "Comparison saved to this resume and job.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "The comparison failed. You can retry."); }
+    } catch (reason) { setActionError(reason instanceof Error ? reason.message : "The comparison failed. You can retry."); }
     finally { setBusy(false); }
   }
 
   return <section className="job-match-panel" aria-labelledby="job-match-heading">
     <div className="ai-result-heading"><div><span className="eyebrow">JOB MATCHING</span><h3 id="job-match-heading">Compare with a job</h3></div></div>
     <p>Save a job description to compare its stated requirements with evidence in your confirmed resume. The score is practice feedback, not a hiring prediction.</p>
-    {error && <div className="notice notice-error" role="alert">{error} <button className="text-button" type="button" onClick={() => void refreshJobs()}>Retry loading jobs</button></div>}
+    {actionError && <p className="notice notice-error" role="alert">{actionError}</p>}
     {notice && <p className="notice notice-success" role="status">{notice}</p>}
     <form className="job-match-form" onSubmit={(event) => void addJob(event)}>
       <label>Job title (optional)<input maxLength={180} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Company (optional)<input maxLength={180} value={company} onChange={(event) => setCompany(event.target.value)} /></label>
       <label>Job description<textarea required minLength={1} maxLength={30000} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-      <button className="button button-secondary" disabled={busy || !description.trim()} type="submit">{busy ? "Saving…" : "Save job description"}</button>
+      <button className="button button-secondary" disabled={busy || jobsLoading || !!jobsError || !description.trim()} type="submit">{busy ? "Saving…" : "Save job description"}</button>
     </form>
-    {loading ? <p role="status">Loading saved jobs and comparison…</p> : jobs.length === 0 ? <p>No saved jobs yet.</p> : <div className="job-match-saved">
-      <label>Saved job<select value={jobId} disabled={busy} onChange={(event) => { matchRequest.current += 1; setJobId(event.target.value); setMatch(null); }}>{jobs.map((job) => <option key={job.id} value={job.id}>{job.job_title || "Untitled job"}{job.company_name ? ` · ${job.company_name}` : ""}</option>)}</select></label>
-      <button className="button button-secondary" disabled={busy || !jobId} type="button" onClick={() => void compare()}>{busy ? "Comparing…" : match?.status === "completed" ? "Compare again" : "Compare with resume"}</button>
+    {jobsLoading ? <p role="status">Loading saved jobs…</p> : jobsError ? <div className="notice notice-error" role="alert">{jobsError} <button className="text-button" type="button" onClick={() => void refreshJobs()}>Retry loading jobs</button></div> : jobs.length === 0 ? <p>No saved jobs yet.</p> : <div className="job-match-saved">
+      <label>Saved job<select value={jobId} disabled={busy} onChange={(event) => { matchRequest.current += 1; setJobId(event.target.value); setMatch(null); setMatchError(""); setActionError(""); setNotice(""); }}>{jobs.map((job) => <option key={job.id} value={job.id}>{job.job_title || "Untitled job"}{job.company_name ? ` · ${job.company_name}` : ""}</option>)}</select></label>
+      <button className="button button-secondary" disabled={busy || !jobId || matchLoading || !!matchError} type="button" onClick={() => void compare()}>{busy ? "Comparing…" : match?.status === "completed" ? "Compare again" : "Compare with resume"}</button>
+      {matchLoading && <p role="status">Loading saved comparison…</p>}
+      {matchError && <div className="notice notice-error" role="alert">{matchError} <button className="text-button" type="button" onClick={() => void refreshMatch()}>Retry loading comparison</button></div>}
       {match?.status === "failed" && <p role="status">The last comparison failed. You can retry.</p>}
-      {match?.status === "processing" && <p role="status">A comparison was started. <button className="text-button" onClick={() => void refreshMatch()} type="button">Refresh status</button></p>}
+      {match?.status === "processing" && <p role="status">A comparison was started. <button className="text-button" disabled={matchLoading || !!matchError} onClick={() => void refreshMatch()} type="button">Refresh status</button></p>}
       {match?.status === "completed" && <div className="job-match-result">
         <h4>{match.match_score === null ? "Insufficient information" : `Practice match: ${match.match_score}/100`}</h4>
         {match.is_stale && <p className="inline-message inline-error" role="status">This comparison used an older resume profile. Run it again for the current profile.</p>}
