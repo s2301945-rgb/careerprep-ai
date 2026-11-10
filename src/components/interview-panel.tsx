@@ -12,21 +12,24 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
   const [selectedId, setSelectedId] = useState("");
   const [interview, setInterview] = useState<Interview | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [interviewLoading, setInterviewLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [interviewError, setInterviewError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const interviewRequest = useRef(0);
 
   const refresh = useCallback(async () => {
-    setLoading(true); setError("");
+    setHistoryLoading(true); setHistoryError("");
     try {
       const [jobResult, historyResult] = await Promise.all([listJobs(), listInterviews(resumeId)]);
       setJobs(jobResult.jobs);
       setHistory(historyResult.interviews);
       setSelectedId((current) => current || historyResult.interviews[0]?.id || "");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Interview history could not be loaded."); }
-    finally { setLoading(false); }
+    } catch (reason) { setHistoryError(reason instanceof Error ? reason.message : "Interview history could not be loaded."); }
+    finally { setHistoryLoading(false); }
   }, [resumeId]);
 
   useEffect(() => {
@@ -37,13 +40,16 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
   const loadSelected = useCallback(async () => {
     const request = ++interviewRequest.current;
     if (!selectedId) { setInterview(null); return; }
-    setLoading(true); setError("");
+    setInterviewLoading(true); setInterviewError("");
     try {
       const result = await getInterview(selectedId);
-      if (request === interviewRequest.current) setInterview(result.interview);
+      if (request === interviewRequest.current) {
+        setInterview(result.interview);
+        setHistory((current) => current.map((item) => item.id === result.interview.id ? result.interview : item));
+      }
     } catch (reason) {
-      if (request === interviewRequest.current) setError(reason instanceof Error ? reason.message : "This interview could not be loaded.");
-    } finally { if (request === interviewRequest.current) setLoading(false); }
+      if (request === interviewRequest.current) setInterviewError(reason instanceof Error ? reason.message : "This interview could not be loaded.");
+    } finally { if (request === interviewRequest.current) setInterviewLoading(false); }
   }, [selectedId]);
 
   useEffect(() => {
@@ -52,16 +58,17 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
   }, [loadSelected]);
 
   async function begin() {
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setActionError(""); setNotice("");
     try {
       const result = await startInterview(resumeId, jobId || null);
       interviewRequest.current += 1;
       setInterview(result.interview);
+      setInterviewError("");
       setSelectedId(result.interview.id);
       setHistory((current) => [result.interview, ...current]);
       setDrafts({});
       setNotice("Five questions were saved. Your answers and feedback will remain available here.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "The interview could not be started. Try again."); }
+    } catch (reason) { setActionError(reason instanceof Error ? reason.message : "The interview could not be started. Try again."); }
     finally { setBusy(false); }
   }
 
@@ -69,31 +76,36 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
     event.preventDefault();
     const answerText = savedText ?? drafts[questionId] ?? "";
     if (!answerText.trim() || !interview) return;
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setActionError(""); setNotice("");
     try {
       const result = await submitInterviewAnswer(interview.id, questionId, answerText);
       setInterview(result.interview);
       setHistory((current) => current.map((item) => item.id === result.interview.id ? result.interview : item));
       setNotice(result.interview.status === "completed" ? "Interview complete. Review your saved feedback." : "Answer evaluated and saved.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "The answer could not be evaluated. Try again."); }
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "The answer could not be evaluated. Try again.");
+      await loadSelected();
+    }
     finally { setBusy(false); }
   }
 
   return <section className="interview-panel" aria-labelledby="interview-heading">
     <div className="ai-result-heading"><div><span className="eyebrow">MOCK INTERVIEW</span><h3 id="interview-heading">Practice your answers</h3></div></div>
     <p>Start a five-question text interview based on your confirmed resume. A saved job description is optional. Scores are practice feedback, not a hiring prediction.</p>
-    {error && <div className="notice notice-error" role="alert">{error} <button className="text-button" type="button" onClick={() => void refresh()}>Retry loading</button></div>}
+    {actionError && <p className="notice notice-error" role="alert">{actionError}</p>}
     {notice && <p className="notice notice-success" role="status">{notice}</p>}
     <div className="interview-start">
       <label>Job context<select value={jobId} onChange={(event) => setJobId(event.target.value)}><option value="">No job description</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.job_title || "Untitled job"}</option>)}</select></label>
-      <button className="button button-secondary" disabled={busy} onClick={() => void begin()} type="button">{busy ? "Working…" : "Start a new interview"}</button>
+      <button className="button button-secondary" disabled={busy || historyLoading || !!historyError} onClick={() => void begin()} type="button">{busy ? "Working…" : "Start a new interview"}</button>
     </div>
-    {loading ? <p role="status">Loading interview history…</p> : history.length === 0 ? <p>No practice interviews yet.</p> : <div className="interview-history">
-      <label>Saved interview<select value={selectedId} disabled={busy} onChange={(event) => { interviewRequest.current += 1; setSelectedId(event.target.value); setInterview(null); }}>{history.map((item) => <option value={item.id} key={item.id}>{new Date(item.created_at).toLocaleDateString()} · {item.status.replaceAll("_", " ")}{item.overall_score !== null ? ` · ${item.overall_score}/100` : ""}</option>)}</select></label>
+    {historyLoading ? <p role="status">Loading interview history…</p> : historyError ? <div className="notice notice-error" role="alert">{historyError} <button className="text-button" type="button" onClick={() => void refresh()}>Retry loading interview history</button></div> : history.length === 0 ? <p>No practice interviews yet.</p> : <div className="interview-history">
+      <label>Saved interview<select value={selectedId} disabled={busy} onChange={(event) => { interviewRequest.current += 1; setSelectedId(event.target.value); setInterview(null); setInterviewError(""); setActionError(""); setNotice(""); }}>{history.map((item) => <option value={item.id} key={item.id}>{new Date(item.created_at).toLocaleDateString()} · {item.status.replaceAll("_", " ")}{item.overall_score !== null ? ` · ${item.overall_score}/100` : ""}</option>)}</select></label>
+      {interviewLoading && <p role="status">Loading saved interview…</p>}
+      {interviewError && <div className="notice notice-error" role="alert">{interviewError} <button className="text-button" type="button" onClick={() => void loadSelected()}>Retry loading interview</button></div>}
       {interview?.status === "failed" && <p>Question generation failed. Start a new interview to retry.</p>}
       {interview?.status === "pending" && <p>Questions are still being prepared. <button className="text-button" type="button" onClick={() => void loadSelected()}>Refresh status</button></p>}
       {interview?.status === "completed" && <div className="job-match-result"><h4>Practice score: {interview.overall_score}/100</h4><p>{interview.summary}</p></div>}
-      {interview?.questions.map((question) => <article className="interview-question" key={question.id}>
+      {!interviewLoading && !interviewError && interview?.questions.map((question) => <article className="interview-question" key={question.id}>
         <p className="eyebrow">QUESTION {question.question_number} · {question.question_type.toUpperCase()}</p>
         <h4>{question.question_text}</h4>
         {question.context_quote && <small>Based on: “{question.context_quote}”</small>}
