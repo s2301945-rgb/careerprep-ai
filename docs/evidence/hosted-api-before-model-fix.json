@@ -1,0 +1,210 @@
+{
+  "startedAt": "2026-10-21T17:38:34.893Z",
+  "finishedAt": "2026-10-21T17:38:46.681Z",
+  "projectRef": "pvarmnhsotxuoqtvcwcb",
+  "apiBoundTo": "127.0.0.1 ephemeral port",
+  "result": "partial",
+  "failure": {
+    "stage": "gemini",
+    "status": 503,
+    "code": "AI_PROVIDER_UNAVAILABLE",
+    "generationRetried": false
+  },
+  "assertions": [
+    {
+      "name": "synthetic_docx_fixture_present",
+      "passed": true
+    },
+    {
+      "name": "synthetic_pdf_fixture_valid_shape",
+      "passed": true
+    },
+    {
+      "name": "private_schema_ready_as_runtime_role",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "ready_reports_database_connected",
+      "passed": true
+    },
+    {
+      "name": "two_synthetic_auth_users_created_and_signed_in",
+      "passed": true
+    },
+    {
+      "name": "api_me_alpha",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "api_me_beta",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "profiles_bind_distinct_verified_subjects",
+      "passed": true
+    },
+    {
+      "name": "authenticated_gemini_connectivity",
+      "passed": false,
+      "status": 503,
+      "code": "AI_PROVIDER_UNAVAILABLE"
+    },
+    {
+      "name": "upload_real_pdf",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "upload_real_pdf_opaque_id",
+      "passed": true
+    },
+    {
+      "name": "upload_real_docx",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "upload_real_docx_opaque_id",
+      "passed": true
+    },
+    {
+      "name": "owner_resume_list",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "owner_list_contains_both_uploads",
+      "passed": true
+    },
+    {
+      "name": "other_owner_resume_list",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "other_owner_list_is_empty",
+      "passed": true
+    },
+    {
+      "name": "owner_resume_detail",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "detail_title_correct",
+      "passed": true
+    },
+    {
+      "name": "other_owner_detail_404",
+      "passed": true,
+      "status": 404,
+      "code": "RESUME_NOT_FOUND"
+    },
+    {
+      "name": "other_owner_file_404",
+      "passed": true,
+      "status": 404,
+      "code": "RESUME_NOT_FOUND"
+    },
+    {
+      "name": "other_owner_rename_404",
+      "passed": true,
+      "status": 404,
+      "code": "RESUME_NOT_FOUND"
+    },
+    {
+      "name": "other_owner_delete_404",
+      "passed": true,
+      "status": 404,
+      "code": "RESUME_NOT_FOUND"
+    },
+    {
+      "name": "owner_rename",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "rename_changes_title_only",
+      "passed": true
+    },
+    {
+      "name": "owner_pdf_download",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "pdf_bytes_content_type_and_filename",
+      "passed": true
+    },
+    {
+      "name": "owner_docx_download",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "docx_bytes_content_type_and_filename",
+      "passed": true
+    },
+    {
+      "name": "owner_pdf_delete_204_storage_cleanup",
+      "passed": true,
+      "status": 204
+    },
+    {
+      "name": "owner_docx_delete_204_storage_cleanup",
+      "passed": true,
+      "status": 204
+    },
+    {
+      "name": "deleted_file_record_404",
+      "passed": true,
+      "status": 404,
+      "code": "RESUME_NOT_FOUND"
+    },
+    {
+      "name": "owner_list_after_delete",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "all_owned_resume_records_deleted",
+      "passed": true
+    }
+  ],
+  "syntheticAuthUsersCreated": 2,
+  "syntheticResumeUploads": 2,
+  "gemini": {
+    "state": "error",
+    "status": 503,
+    "code": "AI_PROVIDER_UNAVAILABLE",
+    "modelCatalogStatus": 200,
+    "configuredModelListed": true,
+    "configuredModelSupportsGenerateContent": true,
+    "generationRetried": false
+  },
+  "cleanup": {
+    "apiDeleteAttempts": 4,
+    "storageDeleteAttempts": 2,
+    "authDeleteAttempts": 2,
+    "authDeleteAcceptedOrAlreadyAbsent": 2,
+    "authAbsenceVerified": 2,
+    "failures": 0,
+    "storageCleanedThroughApiDelete204": 2,
+    "redundantStorageFallbackAttempts": 2,
+    "redundantStorageFallbackFailures": 2,
+    "finalStateVerified": true,
+    "aggregateCountsAfterCleanup": {
+      "authUsers": 0,
+      "appUsers": 0,
+      "resumes": 0,
+      "resumeStorageObjects": 0,
+      "unfinishedCleanupTasks": 0
+    }
+  },
+  "secretsOrTokensIncluded": false,
+  "storagePathsIncluded": false,
+  "sourceContentsIncluded": false
+}

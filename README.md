@@ -1,159 +1,72 @@
 # CareerPrep AI
 
-CareerPrep AI is an AI-powered resume analyzer and mock interview platform. The Week 1 deliverable is a thin, deployed walking skeleton that proves the frontend, backend, database, AI provider, CI, and deployment path can work together.
+CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. The current feature branch includes sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, AI resume analysis, saved job comparisons, and five-question text mock interviews. Job matching and interviews have local automated coverage but have not been verified against live Groq or a hosted signed-in deployment.
 
-## Week 1 Walking Skeleton
+## How it works
 
-- Next.js frontend deployed on Vercel with live service indicators
-- Standalone Node.js backend deployed separately on Railway
-- `GET /health` backend endpoint
-- Supabase PostgreSQL read through `public.app_config`
-- `POST /ai-test` server-side Groq connectivity test
-- GitHub Actions install, lint, and build checks on pull requests
-- Vercel frontend and Railway backend deployment configuration
+The Next.js frontend uses Supabase Auth for sign-in. It sends authenticated resume requests to a standalone Node.js API. The API enforces ownership, stores metadata and results in Supabase PostgreSQL, and keeps originals in a private Supabase Storage bucket. During extraction and analysis, the API sends extracted text to Groq, checks the returned structure and evidence, and saves the result. The user reviews and confirms the profile before requesting analysis.
 
-Future iterations will add authentication, PDF/DOCX resume upload, resume analysis, job-description matching, interview questions, and answer evaluation.
+| Area | Technology and reference |
+| --- | --- |
+| Frontend | Next.js, React, and TypeScript on Vercel |
+| Backend | Node.js HTTP API on Railway. [API reference](docs/08-setup-and-api.md#api-reference) |
+| Data | Supabase Auth, PostgreSQL, and private Storage. [Database relationships](docs/03-database-reference.md) |
+| AI | Groq with backend validation and a synthetic evaluation set. [AI flow and evaluation](docs/08-setup-and-api.md#api-reference) |
+| Delivery | GitHub Actions. [Pipeline, environment setup, and rollback](docs/07-pipeline-and-environments.md) |
 
-## Technology
+See the [architecture diagram](docs/02-technical-design.md) and [sprint record](docs/06-sprint-log.md) for the design and verification history. The release status is tracked in the [changelog](CHANGELOG.md).
 
-- Frontend: Next.js, React, TypeScript on Vercel
-- Backend: Node.js HTTP API on Railway
-- Database: Supabase PostgreSQL
-- AI provider: Groq
-- CI: GitHub Actions
-- Deployment: Vercel
-
-## Team Roles
+## Team roles
 
 | Role | Responsibility |
 | --- | --- |
-| Product owner | Requirements, priorities, and backlog |
-| Frontend developer | Interface and client-side behavior |
-| Backend developer | API routes and AI integration |
-| Database developer | Schema design and migrations |
-| DevOps / QA | CI, testing, and deployment |
+| Frontend developer | Interface, authentication screens, and API integration |
+| Primary backend developer | API contracts, ownership, validation, persistence, and integration |
+| AI/ML developer and backup backend | Groq integration, structured output validation, and backend foundation support |
+| Dedicated DevOps engineer | CI/CD, environments, secrets, deployment health, and pipeline evidence |
 
-Team members may hold more than one role. Responsibilities are shared across the project team.
+The team has four people and one dedicated DevOps engineer. Product ownership and code review are shared team responsibilities.
 
-## Branch Strategy
+## Branch strategy
 
 - `main` contains stable, deployable code.
-- Work is completed in `feature/<issue-number>-<description>` branches.
-- Changes enter `main` through pull requests.
-- CI must pass before a pull request is merged.
-- Direct pushes and force pushes to `main` are blocked by a GitHub ruleset.
+- Develop on a feature branch and submit a pull request. When a branch depends on an unmerged change, review it against that dependency first.
+- Team policy requires passing CI and at least one teammate review before merge. Repository administrators manage the GitHub rules that enforce those gates.
 
-## Local Setup
+## Run locally
 
-Requirements: Node.js 22+ and pnpm 11+.
+Use Node.js 22 and pnpm 11.25.0. From the repository root, run in PowerShell:
 
-```bash
-pnpm install
+```powershell
+pnpm install --frozen-lockfile
+npm --prefix backend ci
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
 ```
 
-Copy `.env.example` to `.env.local`, then start both services:
+1. Set `NEXT_PUBLIC_API_URL=http://localhost:8080` and the public Supabase URL and anon key in `.env.local`.
+2. Set `FRONTEND_URL=http://localhost:3000` in `backend/.env` and configure the same development Supabase project, server-only Storage key, and restricted PostgreSQL runtime login. Set `GROQ_API_KEY` there to try live extraction and analysis.
+3. Apply migrations to the development database using the separate operator connection. Follow the [migration and role setup instructions](docs/08-setup-and-api.md#apply-migrations-deliberately) before running `npm --prefix backend run migrate`. The backend loads its ignored `.env` automatically.
+4. Start the backend with `npm --prefix backend start` and the frontend with `pnpm dev` in separate terminals.
+5. Open [http://localhost:3000](http://localhost:3000). Use the same origin configured in `FRONTEND_URL` and the Supabase Auth redirect allowlist.
 
-```bash
-cp .env.example .env.local
-pnpm dev
-npm --prefix backend start
-```
+Check [backend readiness](http://localhost:8080/ready) before signing in. A ready backend returns HTTP 200 with a connected private database. Use a development account and a synthetic text-based PDF or DOCX. Upload it, open it, choose **Extract resume profile**, review the draft, choose **Confirm this profile**, then select **Analyze resume**. In the same resume view, save a job description and compare it, then start a five-question mock interview with or without the saved job. Reopen the resume to check saved comparisons and interview feedback. Scanned PDFs without a text layer cannot be extracted. Apply both Sprint 4 migrations before starting this version of the backend.
 
-Open `http://localhost:3000`.
+The optional Vite prototype in `CareerPrepAI/` is separate. Run it with `npm --prefix CareerPrepAI ci` and `npm --prefix CareerPrepAI run dev`.
 
-### Standalone frontend prototype
+## Quality checks
 
-The `CareerPrepAI/` directory preserves the Vite and TypeScript prototype from the `master` branch. It runs independently of the Next.js frontend at the repository root:
-
-```bash
-npm --prefix CareerPrepAI ci
-npm --prefix CareerPrepAI run dev
-```
-
-CI builds both frontends and checks the Railway backend.
-
-## Environment Variables
-
-The frontend uses one public variable:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8080
-```
-
-Copy `backend/.env.example` to `backend/.env` for local backend development. In Railway, configure:
-
-```env
-FRONTEND_URL=https://your-vercel-domain.vercel.app
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-GROQ_API_KEY=
-GROQ_MODEL=openai/gpt-oss-20b
-```
-
-`GROQ_API_KEY` is a server-only secret stored only in Railway. Never place it in a `NEXT_PUBLIC_` variable or commit a local environment file.
-
-## Database Migration
-
-Apply the SQL files in `supabase/migrations` to a new Supabase project in filename order. The walking-skeleton migration creates `public.app_config`, inserts the project name, and grants read-only access so `/api/health` can prove a real database read.
-
-The larger `careerprep` schema is private by design and is reserved for future application features.
-
-## API Endpoints
-
-### `GET /health`
-
-Returns frontend/backend database connectivity information. When Supabase is configured, the application name is read from PostgreSQL.
-
-### `POST /ai-test`
-
-Makes a minimal Groq request from the server. The API key is never sent to the browser.
-
-## Quality Checks
-
-```bash
+```powershell
 pnpm lint
 pnpm build
+npm --prefix backend run check
+npm --prefix backend test
 ```
 
-GitHub Actions runs frontend install, lint, build, and a backend syntax check on every pull request and on pushes to `main`.
+GitHub Actions also runs database integration against disposable PostgreSQL and builds the prototype. To run the database suite locally, use the [disposable database setup](docs/08-setup-and-api.md#automated-checks).
 
-## Deployment
+The normal tests mock Groq. With a development key set on the backend, run `npm --prefix backend run evaluate:resume-ai` to check the three synthetic fixtures against the live provider. The command reports a pass count for expected skills and grounded achievement evidence. Keep Groq keys, database passwords, Storage service-role keys, and access tokens in ignored local files or hosting secret settings.
 
-### Live Week 1 deployment
+## Release status
 
-- Frontend: https://careerprep-ai-ten.vercel.app
-- Backend: https://careerprep-ai-production.up.railway.app
-
-The deployed frontend connects to the Railway backend, and the backend successfully reads the walking-skeleton configuration from the hosted Supabase database.
-
-### Backend on Railway
-
-1. Create a Railway service from this GitHub repository.
-2. Set the service **Root Directory** to `/backend`.
-3. Add the variables from `backend/.env.example` (Railway supplies `PORT`).
-4. Generate a public Railway domain and verify `/`, `/health`, and `POST /ai-test`.
-
-### Frontend on Vercel
-
-1. Import the same GitHub repository into Vercel using the repository root.
-2. Set `NEXT_PUBLIC_API_URL` to the public Railway domain, without a trailing slash.
-3. Redeploy the `main` branch.
-4. Set Railway's `FRONTEND_URL` to the final Vercel URL.
-5. Verify all four service indicators and the **Test AI connection** button.
-
-## Week 1 Evidence Checklist
-
-- [x] Repository, README, `.gitignore`, `.env.example`, and branch strategy
-- [x] Database schema and migration files
-- [x] Minimal frontend calling backend endpoints
-- [x] Backend endpoint reading from the database
-- [x] Pull-request CI for install, lint, and build
-- [x] Supabase migrations applied to the hosted project
-- [x] Production deployment available at a live URL
-- [x] Branch protection requires pull requests and passing CI
-- [x] GitHub issues created for the Week 1 requirements
-- [ ] Groq key verified through the backend — add `GROQ_API_KEY` in Railway and verify the live check
-
-## Security
-
-Never commit API keys, database passwords, access tokens, or other credentials. Use `.env.local`, GitHub Actions secrets, and Vercel environment variables.
+The current branch is a release candidate in development. Earlier deployments and CI results are listed as evidence in the [sprint record](docs/06-sprint-log.md). Use the [cloud setup guide](docs/09-cloud-setup.md) and [release checklist](CHANGELOG.md#release-checklist) to verify a reviewed commit on the deployed frontend and backend before publishing a release tag. The [documentation index](docs/README.md) links the course instructions and other design records.
