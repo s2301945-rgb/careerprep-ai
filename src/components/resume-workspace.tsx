@@ -19,6 +19,7 @@ import {
   type AppProfile,
   type ResumeProfile,
   type ResumeRecord,
+  type SavedJob,
 } from "@/lib/api";
 import { ServiceDiagnostics } from "@/components/service-diagnostics";
 import { JobMatchPanel } from "@/components/job-match-panel";
@@ -320,6 +321,7 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
   const [aiLoading, setAiLoading] = useState(true);
   const [aiLoadError, setAiLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [newlySavedJobs, setNewlySavedJobs] = useState<SavedJob[]>([]);
   const aiBusy = aiAction !== null;
 
   useEffect(() => {
@@ -571,8 +573,12 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
                 An analysis was started. Refresh to check for a result.{" "}
                 <button className="text-button" onClick={retryDetails} type="button">Refresh status</button>
               </div>}
-              {!aiLoading && !aiLoadError && profile?.review_status === "confirmed" && <JobMatchPanel resumeId={id} />}
-              {!aiLoading && !aiLoadError && profile?.review_status === "confirmed" && <InterviewPanel resumeId={id} />}
+              {!aiLoading && !aiLoadError && profile?.review_status === "confirmed" && (
+                <>
+                  <JobMatchPanel resumeId={id} onJobSaved={(job) => setNewlySavedJobs((current) => [job, ...current])} />
+                  <InterviewPanel resumeId={id} newlySavedJobs={newlySavedJobs} />
+                </>
+              )}
             </section>
 
             {confirmDelete ? (

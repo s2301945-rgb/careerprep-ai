@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { getJobMatch, listJobs, runJobMatch, saveJob, type JobMatch, type SavedJob } from "@/lib/api";
 
-export function JobMatchPanel({ resumeId }: { resumeId: string }) {
+export function JobMatchPanel({ resumeId, onJobSaved }: { resumeId: string; onJobSaved: (job: SavedJob) => void }) {
   const [jobs, setJobs] = useState<SavedJob[]>([]);
   const [jobId, setJobId] = useState("");
   const [match, setMatch] = useState<JobMatch | null>(null);
@@ -63,6 +63,7 @@ export function JobMatchPanel({ resumeId }: { resumeId: string }) {
       setMatch(null);
       setMatchError("");
       setJobs((current) => [result.job, ...current]);
+      onJobSaved(result.job);
       setJobId(result.job.id);
       setTitle(""); setCompany(""); setDescription("");
       setNotice("Job description saved. You can now compare it with this resume.");
