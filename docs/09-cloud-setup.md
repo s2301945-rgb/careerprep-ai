@@ -19,10 +19,13 @@ If a newly installed command is missing, close and reopen VS Code to refresh PAT
 ```powershell
 supabase projects list
 supabase migration list --linked
+supabase db push --linked --dry-run
 supabase config diff --project-ref pvarmnhsotxuoqtvcwcb
 ```
 
-The project is `pvarmnhsotxuoqtvcwcb`. All three migration versions should appear as applied. Do not reset the database or re-create the runtime password. The existing runtime connection is in ignored `backend/.env`. The public frontend settings are in ignored `.env.local`.
+Confirm the CLI is linked to `pvarmnhsotxuoqtvcwcb` before running the linked commands. The [last recorded hosted migration check](evidence/hosted-migration.json) confirmed the first three versions through Sprint 2. Check the live history for the current state. The Week 4 release requires all six versions in [supabase/migrations](../supabase/migrations), including `20261107090000` for resume analysis, `20261108090000` for job matching, and `20261108100000` for interviews.
+
+If the dry run lists only the expected pending versions, follow the [operator migration guide](08-setup-and-api.md#apply-migrations-deliberately) to review backup and recovery options and apply them before deploying the Week 4 backend. Check the migration history again after applying them. If the history differs from the expected versions, investigate before applying anything. Keep the operator connection separate from the backend runtime connection.
 
 Auth confirmation returns to `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. The declared settings are in [config.toml](../supabase/config.toml). Review a diff before any future push; unrelated remote settings should stay untouched.
 
