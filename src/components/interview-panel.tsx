@@ -5,7 +5,7 @@ import { getInterview, listInterviews, listJobs, startInterview, submitInterview
 
 type HistoryItem = Pick<Interview, "id" | "status" | "question_count" | "overall_score" | "summary" | "created_at">;
 
-export function InterviewPanel({ resumeId }: { resumeId: string }) {
+export function InterviewPanel({ resumeId, newlySavedJobs }: { resumeId: string; newlySavedJobs: SavedJob[] }) {
   const [jobs, setJobs] = useState<SavedJob[]>([]);
   const [jobId, setJobId] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -20,6 +20,10 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const interviewRequest = useRef(0);
+  const jobOptions = [
+    ...newlySavedJobs,
+    ...jobs.filter((job) => !newlySavedJobs.some((saved) => saved.id === job.id)),
+  ];
 
   const refresh = useCallback(async () => {
     setHistoryLoading(true); setHistoryError("");
@@ -95,7 +99,7 @@ export function InterviewPanel({ resumeId }: { resumeId: string }) {
     {actionError && <p className="notice notice-error" role="alert">{actionError}</p>}
     {notice && <p className="notice notice-success" role="status">{notice}</p>}
     <div className="interview-start">
-      <label>Job context<select value={jobId} onChange={(event) => setJobId(event.target.value)}><option value="">No job description</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.job_title || "Untitled job"}</option>)}</select></label>
+      <label>Job context<select value={jobId} onChange={(event) => setJobId(event.target.value)}><option value="">No job description</option>{jobOptions.map((job) => <option key={job.id} value={job.id}>{job.job_title || "Untitled job"}</option>)}</select></label>
       <button className="button button-secondary" disabled={busy || historyLoading || !!historyError} onClick={() => void begin()} type="button">{busy ? "Working…" : "Start a new interview"}</button>
     </div>
     {historyLoading ? <p role="status">Loading interview history…</p> : historyError ? <div className="notice notice-error" role="alert">{historyError} <button className="text-button" type="button" onClick={() => void refresh()}>Retry loading interview history</button></div> : history.length === 0 ? <p>No practice interviews yet.</p> : <div className="interview-history">
