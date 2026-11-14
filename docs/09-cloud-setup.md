@@ -1,6 +1,6 @@
 # Connect Supabase, Railway and Vercel from VS Code
 
-This guide records the earlier setup work. Recheck the live project settings before any release. The read-only Week 4 check found an existing Railway `capable-unity` project with a `careerprep-ai` production service sourced from `main`; it did not find configured database, Supabase Auth/Storage, or Groq key variables. The Railway service currently checks `/`, while the repository declares `/ready`. A successful Railway deployment alone does not establish that the private application is ready.
+The production backend runs on the `careerprep-ai` service in Railway's `capable-unity` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-89bf.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations. The production service still needed the Storage and Groq credentials, and the public Vercel builds still needed to be connected to this backend. Recheck these settings before release.
 
 ## 1. Open the project terminal
 
@@ -18,11 +18,11 @@ If a newly installed command is missing, close and reopen VS Code to refresh PAT
 
 ```powershell
 supabase projects list
-supabase migration list --linked
-supabase config diff --project-ref pvarmnhsotxuoqtvcwcb
+supabase migration list --remote=pvarmnhsotxuoqtvcwcb
+supabase config diff --remote=pvarmnhsotxuoqtvcwcb
 ```
 
-The project is `pvarmnhsotxuoqtvcwcb`. All three migration versions should appear as applied. Do not reset the database or re-create the runtime password. The existing runtime connection is in ignored `backend/.env`. The public frontend settings are in ignored `.env.local`.
+Compare each version in [the migration directory](../supabase/migrations) with the remote ledger. All six versions through `20261108100000` matched in the release audit. If the ledger differs, review the diff and dry-run pending migrations before applying them. The `resumes` bucket should be private and allow PDFs and DOCX files up to 10 MiB.
 
 Auth confirmation returns to `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. The declared settings are in [config.toml](../supabase/config.toml). Review a diff before any future push; unrelated remote settings should stay untouched.
 
@@ -41,7 +41,10 @@ Select the existing project rather than creating another:
 railway link
 ```
 
-Choose `capable-unity`, the `production` environment and the existing `careerprep-ai` service. In its **Variables** tab, configure the backend settings listed in [the setup guide](08-setup-and-api.md) through a private channel. Set `NODE_ENV=production`, use the limited runtime `DATABASE_URL`, and set `DATABASE_SSL_CA=certs/supabase-prod-ca-2021.crt`. Add only the exact approved frontend origins to `FRONTEND_URL`. Keep the service key and Groq key on Railway only. Do not add the operator/migration credential. Set the service health check to `/ready` and verify its response after the reviewed code and migrations are deployed.
+Choose `capable-unity`, the `production` environment and the existing `careerprep-ai` service. In **Variables**, check the setting names against [the setup guide](08-setup-and-api.md). The production audit found `DATABASE_URL`, `DATABASE_SSL_CA`, `FRONTEND_URL`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `GROQ_MODEL`.
+
+- The Supabase project owner should enter the server-only legacy JWT `service_role` key as `SUPABASE_SERVICE_ROLE_KEY` directly in Railway. The deployed Storage client sends it as both `apikey` and a bearer token. A modern `sb_secret_…` key uses a different header convention and would require a client change. [Supabase key compatibility](https://supabase.com/docs/guides/getting-started/api-keys#known-limitations)
+- The Groq key owner should add a fresh `GROQ_API_KEY` to the same service. Store both credentials only in Railway and keep the database migration credential in the operator environment.
 
 Use the checked commit as the deployment source. A source-only archive excludes ignored credentials and local dependencies:
 
@@ -54,13 +57,13 @@ railway up "$deployStage/backend" --path-as-root --service careerprep-ai --detac
 railway domain --service careerprep-ai
 ```
 
-Record the verified domain. Check `https://YOUR-DOMAIN/ready`: it must return HTTP 200 with a connected database. `/api/v1/resumes` without a token must return 401. The live service is already sourced from `main`; verify Root Directory `/backend` and enable **Wait for CI** after the reviewed PR stack lands. Do not run the manual upload until the release is approved.
+Check [the production API's readiness](https://careerprep-ai-production-89bf.up.railway.app/ready) for HTTP 200 and a connected database. `/api/v1/resumes` without a token must return 401. Verify the deployed commit, the `/backend` root directory, and whether **Wait for CI** is enabled. Confirm that `FRONTEND_URL` includes the selected production domain and that the browser preflight returns HTTP 204 with that origin.
 
 ## 4. Finish Vercel
 
-Open [your replacement project](https://vercel.com/xiee-t/careerprep-ai). It already has Next.js, Node 22, `pnpm install --frozen-lockfile`, `pnpm build`, and the two public Supabase settings. The first deployment is at [careerprep-ai-seven.vercel.app](https://careerprep-ai-seven.vercel.app). Its API is intentionally unconfigured until Railway supplies the replacement URL.
+Confirm which frontend URL the team will submit and have that Vercel project's owner update it. In the release audit, [careerprep-ai-seven.vercel.app](https://careerprep-ai-seven.vercel.app) served an older build without a Railway API URL. The repository's public link, [careerprep-ai-ten.vercel.app](https://careerprep-ai-ten.vercel.app), called the older Railway service, whose `/ready` returned HTTP 503.
 
-In **Settings > Environment Variables**, add `NEXT_PUBLIC_API_URL` with the new Railway HTTPS origin to Production. Use Preview only for the deliberately approved review environment; arbitrary previews must not access production private data. Redeploy after changing the value, because `NEXT_PUBLIC_` settings are included at build time.
+In **Settings > Environment Variables**, set the Production value of `NEXT_PUBLIC_API_URL` to `https://careerprep-ai-production-89bf.up.railway.app`. Verify the public Supabase Auth settings and the matching redirect URL for the selected site. Deploy the checked `main` commit after saving the setting, because Next.js embeds `NEXT_PUBLIC_` values at build time. Confirm the deployed revision before testing in the browser.
 
 From this linked checkout, `vercel deploy --environment preview` creates a review deployment; `vercel deploy --prod` publishes production. Use a clean source archive for manual uploads, as above, or inspect `vercel deploy --dry --json` first to ensure ignored credentials and local files are excluded. A complete release still requires the reviewed commit and passing CI.
 
@@ -68,6 +71,8 @@ The attempted Git connection failed because this account does not own `s2301945-
 
 ## 5. Accept the deployed increment
 
-Set GitHub repository variables `PRODUCTION_FRONTEND_URL` and `PRODUCTION_API_URL` to the accepted URLs. Run the smoke workflow after merge. Then use two real test accounts to upload PDF and DOCX, refresh, rename, download and delete; verify one account cannot access the other's documents. Check signup email confirmation and token refresh. Record the deployed commit and outcomes in [the sprint log](06-sprint-log.md).
+Set GitHub repository variables `PRODUCTION_FRONTEND_URL` and `PRODUCTION_API_URL` to the accepted URLs. Run the smoke workflow. It checks the frontend response and the API endpoints independently. In the deployed browser app, verify that the Network panel shows a successful `/ready` request to the chosen Railway API.
+
+Use two dedicated test accounts and synthetic resumes. Check signup confirmation, sign-in and token refresh. Upload PDF and DOCX files, reload, rename, download and delete them. Verify the other account cannot list or download those files. Run the backend AI check, confirm a resume profile, generate a saved analysis, compare the resume with a saved job and complete the five-answer interview. Record the deployed commit, URLs and outcomes in [the sprint log](06-sprint-log.md). Tag the release after completing [the release checklist](../CHANGELOG.md#release-checklist).
 
 The course also requires an actual teammate review before merge, real team standups and a retrospective. These are team actions; the test reports do not replace them.
