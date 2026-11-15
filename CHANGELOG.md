@@ -9,6 +9,7 @@
 - Fixed retries for saved job comparisons and interviews. Failed interview evaluations can retry the original saved answer.
 - Added saved job descriptions, grounded requirement-by-requirement resume matching, and backend-calculated practice scores.
 - Added five-question text mock interviews with saved answers, rubric feedback, history, and a failed-evaluation retry using the same answer.
+- Show newly saved jobs in the mock interview selector without reopening the resume.
 - Added owner-scoped API and PostgreSQL integration coverage for matching and interviews. Live Groq and hosted signed-in acceptance remain pending.
 
 ## Release checklist
