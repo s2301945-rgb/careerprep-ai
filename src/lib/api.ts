@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
-
-const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+import { apiBase } from "@/lib/api-config";
 
 export type ExtractionStatus = "pending" | "processing" | "completed" | "failed";
 

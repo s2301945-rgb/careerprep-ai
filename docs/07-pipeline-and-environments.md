@@ -14,7 +14,7 @@ The [course instructions](00-official-course-instructions.md) require automated 
 
 The PostgreSQL service uses throwaway CI-only credentials. Its Supabase Auth/Storage fixture is test infrastructure; it never represents a real hosted login or Storage verification. Integration tests must use a fresh disposable database, never production.
 
-`Deployment Smoke` runs after a successful production deployment event or an explicit manual run. It uses the configured production URLs, checks the frontend, a real metadata database read, private-schema readiness at `/ready` and the unauthenticated API boundary. It never calls the AI provider, logs in or accesses private documents. Because services finish at different times, it retries a bounded number of times. This smoke check cannot replace the two-user authenticated rehearsal.
+`Deployment Smoke` runs after a successful production deployment event or an explicit manual run. It checks that the deployed frontend was built with the expected API origin and that the API accepts browser requests from the frontend. It also verifies the database read, `/ready` and the signed-out resume API boundary. The chosen production frontend needs a build containing this check's origin marker and the intended `NEXT_PUBLIC_API_URL`. The workflow retries while hosts finish deploying. Run the two-user authenticated rehearsal separately to verify private uploads and live AI.
 
 ```mermaid
 flowchart LR
