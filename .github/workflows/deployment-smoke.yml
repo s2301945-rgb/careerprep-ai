@@ -7,10 +7,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: production-smoke
-  cancel-in-progress: true
-
 jobs:
   production:
     name: Production health and API boundary
@@ -19,6 +15,9 @@ jobs:
       (github.event.deployment_status.state == 'success' &&
       (github.event.deployment.environment == 'Production' ||
       endsWith(github.event.deployment.environment, ' / production')))
+    concurrency:
+      group: production-smoke
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -34,5 +33,5 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Check frontend, database read and protected API
+      - name: Check frontend wiring, database readiness and protected API
         run: node scripts/smoke.mjs
