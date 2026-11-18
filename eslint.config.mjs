@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // The standalone Vite prototype has its own build configuration.
     "CareerPrepAI/**",
+    // Backend has its own checks and dependencies
+    "backend/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
