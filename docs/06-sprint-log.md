@@ -62,6 +62,10 @@ Vercel's Git connection attempt to `s2301945-rgb/careerprep-ai` failed. Current 
 - Apply every SQL migration to real PostgreSQL; verify foreign keys, runtime grants and deletion cleanup. A local Auth/Storage stand-in is test infrastructure, not hosted-provider acceptance.
 - Run the API suite in CI, then repeat the real two-user journey in the deployed environment.
 
+## Public release smoke — November 19, 2026 (Asia/Manila)
+
+Read-only checks against the currently documented public URLs returned HTTP 200 from the Vercel homepage and Railway `/ready`; the API reported `backend: connected` and `database: connected`. `GET /api/v1/resumes` without a session returned 401, and an OPTIONS preflight from `https://careerprep-ai-seven.vercel.app` returned 204 with that exact allowed origin. The homepage's loaded JavaScript did not contain the documented Railway API URL. This smoke does not establish the frontend's deployed API configuration or a signed-in user journey. Resume CRUD, AI, job comparison, interview completion, two-user isolation, the deployed revision and release review remain unverified here.
+
 ## Process and remaining evidence
 
 Exactly four project roles are confirmed: frontend, primary backend, AI/ML plus backup backend, and one dedicated DevOps engineer. Names, personal availability and credential owners remain open in the [decision log](04-discovery-and-decisions.md). Do not invent assignments or completed standups.
