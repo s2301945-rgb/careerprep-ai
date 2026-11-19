@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createResumeAI, validateResumeAnalysis, validateResumeProfile } from "../../src/resume-ai.js";
+import { getAiDiagnostics } from "../../src/ai-diagnostics.js";
 
 const evaluationSet = JSON.parse(readFileSync(new URL("../fixtures/resume-evaluation-set.json", import.meta.url), "utf8"));
 
@@ -73,6 +74,40 @@ test("profile and analysis validators reject invented evidence and unknown skill
   }, item.resume_text, profile), { code: "AI_RESPONSE_INVALID" });
 });
 
+test("analysis source-quote diagnostics identify only the field and rule without exposing content or keys", async () => {
+  const item = evaluationSet[0];
+  const privateSource = "PRIVATE_SYNTHETIC_SOURCE_SENTINEL_49281";
+  const invalidQuote = "PRIVATE_SYNTHETIC_GENERATED_QUOTE_SENTINEL_49281";
+  const apiKey = "TEST_ONLY_KEY_SENTINEL_49281";
+  const source = `${item.resume_text}\n${privateSource}`;
+  const profile = validateResumeProfile(profileFor(item), source);
+  for (const field of ["strengths", "weaknesses", "recommendations", "skill_assessments"]) {
+    const result = {
+      ...analysisFor(item),
+      [field]: field === "skill_assessments"
+        ? [{ name: item.expected_skill, score: 50, evidence: invalidQuote }]
+        : [{ text: "A synthetic finding.", evidence: invalidQuote }],
+    };
+    const ai = createResumeAI({
+      apiKey, model: "test/model",
+      fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) } }] })),
+    });
+    await assert.rejects(ai.analyze(source, profile), (error) => {
+      assert.equal(error.status, 502);
+      assert.equal(error.code, "AI_EVIDENCE_INVALID");
+      assert.equal(error.message, "The resume analysis could not verify a claim against the document text.");
+      const diagnostic = JSON.parse(JSON.stringify(getAiDiagnostics(error)));
+      assert.deepEqual(diagnostic, {
+        operation: "resume_analysis", validation_field: `${field}[].evidence`, validation_rule: "source_quote",
+      });
+      assert.equal(Object.hasOwn(error, "validation_field"), false);
+      const exposed = JSON.stringify({ error, diagnostic });
+      for (const sentinel of [privateSource, invalidQuote, apiKey]) assert.equal(exposed.includes(sentinel), false);
+      return true;
+    });
+  }
+});
+
 test("Groq profile and analysis calls are mocked, JSON-only, and schema validated", async () => {
   const item = evaluationSet[0];
   const sent = [];
@@ -97,6 +132,91 @@ test("Groq profile and analysis calls are mocked, JSON-only, and schema validate
   assert.equal(Object.hasOwn(JSON.parse(sent[0].options.body), "store"), false);
   assert.equal(profile.provider, "groq");
   assert.equal(analysis.result.overall_score, 73);
+});
+
+test("profile requests state the enforced limits and keep valid boundary values", async () => {
+  const source = `Synthetic student. JavaScript. ${"E".repeat(401)}`;
+  const profile = {
+    summary: "S".repeat(700),
+    skills: [{ name: "N".repeat(80), evidence: "E".repeat(400) }],
+    education: [{ credential: "C".repeat(160), institution: "I".repeat(160), evidence: "E".repeat(400) }],
+    projects: [{ name: "P".repeat(160), description: "D".repeat(300), evidence: "E".repeat(400) }],
+    experience: [{ role: "R".repeat(160), organization: "O".repeat(160), highlights: [{ text: "T".repeat(300), evidence: "E".repeat(400) }] }],
+  };
+  let request;
+  const ai = createResumeAI({
+    apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async (_url, options) => {
+      request = JSON.parse(options.body);
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(profile) } }] }));
+    },
+  });
+  const generated = await ai.extractProfile(source);
+  assert.deepEqual(generated.result, profile);
+  const instructions = request.messages[0].content;
+  assert.match(instructions, /summary within 700 characters/);
+  assert.match(instructions, /at most 30 skills, 12 education entries, 30 projects, 20 experience entries, and 8 highlights per experience entry/);
+  assert.match(instructions, /skill name within 80 characters/);
+  assert.match(instructions, /credential, institution, project name, role, and organization within 160 characters/);
+  assert.match(instructions, /project description and each highlight text within 300 characters/);
+  assert.match(instructions, /every evidence quote within 400 characters/);
+  assert.match(instructions, /non-whitespace text except credential, institution, role, and organization/);
+  assert.match(instructions, /at least one non-empty credential or institution/);
+  assert.match(instructions, /non-empty role or organization or at least one grounded highlight/);
+  assert.equal(generated.promptVersion, "resume-ai-v5");
+});
+
+test("profile diagnostics retain strict field and list bounds without leaking source or generated values", async () => {
+  const privateSource = "PRIVATE_SYNTHETIC_PROFILE_SOURCE_81394";
+  const apiKey = "TEST_ONLY_PROFILE_KEY_81394";
+  const generatedMarker = "PRIVATE_SYNTHETIC_PROFILE_OUTPUT_81394";
+  const source = `${privateSource} JavaScript ${"E".repeat(401)}`;
+  const profile = {
+    summary: "Synthetic student.",
+    skills: [{ name: "JavaScript", evidence: "JavaScript" }],
+    education: [{ credential: "Student", institution: "", evidence: "JavaScript" }],
+    projects: [{ name: "A project", description: "A short description.", evidence: "JavaScript" }],
+    experience: [{ role: "", organization: "", highlights: [{ text: "A grounded activity.", evidence: "JavaScript" }] }],
+  };
+  const cases = [
+    ["summary", 700, (copy) => { copy.summary = generatedMarker + "x".repeat(701); }],
+    ["skills[].name", 80, (copy) => { copy.skills[0].name = "x".repeat(81); }],
+    ["skills[].evidence", 400, (copy) => { copy.skills[0].evidence = "E".repeat(401); }],
+    ["education[].credential", 160, (copy) => { copy.education[0].credential = "x".repeat(161); }],
+    ["education[].institution", 160, (copy) => { copy.education[0].institution = "x".repeat(161); }],
+    ["education[].evidence", 400, (copy) => { copy.education[0].evidence = "E".repeat(401); }],
+    ["projects[].name", 160, (copy) => { copy.projects[0].name = "x".repeat(161); }],
+    ["projects[].description", 300, (copy) => { copy.projects[0].description = "x".repeat(301); }],
+    ["projects[].evidence", 400, (copy) => { copy.projects[0].evidence = "E".repeat(401); }],
+    ["experience[].role", 160, (copy) => { copy.experience[0].role = "x".repeat(161); }],
+    ["experience[].organization", 160, (copy) => { copy.experience[0].organization = "x".repeat(161); }],
+    ["experience[].highlights[].text", 300, (copy) => { copy.experience[0].highlights[0].text = "x".repeat(301); }],
+    ["experience[].highlights[].evidence", 400, (copy) => { copy.experience[0].highlights[0].evidence = "E".repeat(401); }],
+    ["skills", 30, (copy) => { copy.skills = Array(31).fill(copy.skills[0]); }, "max_items"],
+    ["education", 12, (copy) => { copy.education = Array(13).fill(copy.education[0]); }, "max_items"],
+    ["projects", 30, (copy) => { copy.projects = Array(31).fill(copy.projects[0]); }, "max_items"],
+    ["experience", 20, (copy) => { copy.experience = Array(21).fill(copy.experience[0]); }, "max_items"],
+    ["experience[].highlights", 8, (copy) => { copy.experience[0].highlights = Array(9).fill(copy.experience[0].highlights[0]); }, "max_items"],
+  ];
+  for (const [field, limit, mutate, rule = "max_length"] of cases) {
+    const output = structuredClone(profile);
+    mutate(output);
+    const ai = createResumeAI({
+      apiKey, model: "test/model",
+      fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] })),
+    });
+    await assert.rejects(ai.extractProfile(source), (error) => {
+      assert.equal(error.code, "AI_RESPONSE_INVALID");
+      const diagnostic = JSON.parse(JSON.stringify(getAiDiagnostics(error)));
+      assert.deepEqual(diagnostic, {
+        operation: "resume_profile", validation_field: field, validation_rule: rule, validation_limit: limit,
+      });
+      for (const sentinel of [privateSource, apiKey, generatedMarker]) {
+        assert.equal(JSON.stringify({ error, diagnostic }).includes(sentinel), false);
+      }
+      return true;
+    });
+  }
 });
 
 test("the default Groq model requests strict profile and analysis schemas and still validates evidence", async () => {
@@ -162,7 +282,7 @@ test("analysis requests communicate response limits and handle an education-only
   assert.match(instructions, /do not describe it as expertise, proficiency, commercial work, or years of experience without supporting activities or dates/);
   assert.match(instructions, /aspirations, not completed achievements or proof of communication, teamwork, or documentation/);
   assert.match(instructions, /recommend concrete examples instead of inventing them/);
-  assert.equal(analysis.promptVersion, "resume-ai-v4");
+  assert.equal(analysis.promptVersion, "resume-ai-v5");
 });
 
 test("strict-schema analysis still rejects oversized or empty findings without changing valid low scores", async () => {
