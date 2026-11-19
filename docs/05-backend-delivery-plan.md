@@ -1,5 +1,7 @@
 # CareerPrep AI backend delivery plan
 
+> Historical October 21 plan. The [final-defense notice](00-final-defense-instructions.md), captured November 20, supersedes the final deadline below with **November 27, 2026 at 11:59 PM Philippine time**. Original proposed sprint dates remain unchanged. See the [defense checklist](10-final-defense-checklist.md) for outstanding final deliverables.
+
 Planning date: October 21, 2026 (Asia/Manila). Confirmed deadline: **November 17, 2026**. Exact cutoff time and any separate preliminary-pitch deadline remain open. The owner supplied the month/day; the year follows the current project session.
 
 The owner is the primary backend engineer and reports low confidence across backend tasks. This plan makes learning and integration explicit work. It uses the existing Node.js foundation and confirmed Supabase Auth choice. All dates and task splits below are proposals to review with the team; they are not promises that work is already complete or that each teammate is available full time.

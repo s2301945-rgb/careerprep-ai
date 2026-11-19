@@ -10,7 +10,9 @@
 - Added saved job descriptions, grounded requirement-by-requirement resume matching, and backend-calculated practice scores.
 - Added five-question text mock interviews with saved answers, rubric feedback, history, and a failed-evaluation retry using the same answer.
 - Show newly saved jobs in the mock interview selector without reopening the resume.
-- Added owner-scoped API and PostgreSQL integration coverage for matching and interviews. Live Groq and hosted signed-in acceptance remain pending.
+- Added owner-scoped API and PostgreSQL integration coverage for matching and interviews. The [November 19–20 hosted rehearsal](docs/06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) verified private upload/download, profile confirmation, live Groq analysis, job matching, and a complete saved interview with one confirmed test account. The [November 20 frontend update](docs/06-sprint-log.md#frontend-production-update--november-20-2026-asiamanila) deployed the latest UI fixes and verified the accepted alias, persisted results and private download. Final acceptance gates remain pending.
+- Explain signup email limits clearly and prevent duplicate authentication submissions while a request is pending. This does not configure Supabase email delivery.
+- Prepared a CI-gated Vercel deployment workflow; activation requires owner configuration and a successful hosted run.
 
 ## Release checklist
 

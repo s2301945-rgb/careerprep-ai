@@ -1,3 +1,5 @@
+> **Final-defense update captured November 20, 2026.** The newer [Final Presentation and Project Defense instructions](00-final-defense-instructions.md) supersede the presentation-specific rules below where they differ. They set the November 27, 2026, 11:59 PM Philippine-time freeze and require a continuous pre-recorded Deployment Challenge while keeping the system walkthrough live. The original wording below remains a historical source for the product and sprint requirements.
+
 > Official course instruction set supplied by the project owner. The source identifies [csp221a.vercel.app](https://csp221a.vercel.app/) as the official website with resources. Use this as the course authority; the other documents in this folder record our project-specific choices and plans.
 >
 > Source captured from the supplied text file on October 22, 2026. Wording is preserved; section titles are formatted as Markdown headings for navigation.

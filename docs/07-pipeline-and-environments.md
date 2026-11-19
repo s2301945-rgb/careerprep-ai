@@ -40,6 +40,28 @@ flowchart LR
 
 Do not enable automatic PR merging. Each dependent PR must receive a teammate review and pass its applicable checks; merge foundation, API, UI, then delivery. Change the base of the remaining stacked PRs to `main` after each dependency lands.
 
+## Frontend deployment after main CI
+
+`Frontend Production Deployment` in [frontend-deploy.yml](../.github/workflows/frontend-deploy.yml) deploys the existing `careerprep-ai-demo-221a` Vercel project after a successful push-triggered `CI` run on `main` in this repository. It reads the current `main` SHA, checks successful CI for that exact commit, and checks out the verified commit. Fork and pull-request CI runs cannot select deployment source. A manual run must use `main` and pass the same current-commit CI check. The workflow file must first be merged into `main` for these triggers to be available.
+
+The production jobs run one at a time and recheck `main` immediately before deployment. Superseded commits are skipped. Vercel CLI `66.2.0` pulls the project's Production settings, builds once and uploads with `--prebuilt --prod`. The deployment runner uses Node.js 22, matching normal CI. The Vercel project used Node.js 26 at the November 19 inspection. The approved November 20 setup changed it to `22.x` and successfully built frontend revision `3998f66`; see the [deployment record](evidence/frontend-deployment-2026-11-20.json). This workflow does not change that project setting. The uploaded deployment carries `sourceCommit` and `githubActionsRun` metadata.
+
+The repository owner or another administrator must add these three **Actions repository secrets** under **Settings > Secrets and variables > Actions** before the first deployment:
+
+| Secret | Source and destination |
+| --- | --- |
+| `VERCEL_TOKEN` | A deployment token created by the owner of the Vercel scope `wazapzjavellana-2496`. Enter it directly as the repository secret. |
+| `VERCEL_ORG_ID` | The scope ID returned by linking this existing project in the Vercel CLI, in the ignored `.vercel/project.json`. Use the ID rather than the scope's display name. |
+| `VERCEL_PROJECT_ID` | The existing `careerprep-ai-demo-221a` project ID, `prj_ST3K2ppxXVUwD1LDUu7EAl456Kra`. |
+
+The Vercel project owner must configure Production variables `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. The first must point to the working Railway API. The Supabase browser key must be a public anon or publishable key. The project had no stored Production variables at the November 19 inspection, so its earlier manual deployment does not prove these settings are ready for a fresh build. The workflow checks the downloaded settings before building and fails with variable names if configuration is missing or unsafe. The GitHub public variables `PRODUCTION_FRONTEND_URL` and `PRODUCTION_API_URL` must identify the accepted website and API for the smoke check. Deployment secrets are checked by name, and the downloaded environment file is removed during job cleanup.
+
+After Vercel reports readiness, the workflow checks the configured production URL through Vercel's alias API. Its project ID must match the configured project and its deployment URL must match the CLI result. Six bounded attempts allow alias propagation, with five seconds between attempts and a ten-second request timeout. An old healthy alias cannot satisfy this check. The workflow then runs the existing production smoke script and records the final result as a GitHub `Production` deployment on the actual source SHA. Deployment records include a link to the workflow run and, after successful upload, the Vercel deployment URL. A deployment status made with `GITHUB_TOKEN` does not trigger the separate smoke workflow, so the deployment job runs that check directly. The independent `Deployment Smoke` workflow continues to handle hosting-provider events.
+
+As of this implementation the frontend project was deployed through Vercel Drop and had no native Git connection. Vercel requires the owner of a personal GitHub repository to connect it through the native integration; this contributor is a collaborator on the classmate-owned repository. This workflow uses Vercel's documented GitHub Actions/CLI deployment path. Adding the file alone does not prove deployment works. Record the first main CI run, deployment run, source SHA, production URL and smoke result after the secrets are configured.
+
+References are Vercel's [GitHub Actions guide](https://vercel.com/kb/guide/how-can-i-use-github-actions-with-vercel), [deployment metadata](https://vercel.com/docs/cli/deploy#meta), [alias API](https://vercel.com/docs/rest-api/aliases/get-an-alias) and [GitHub repository permissions](https://vercel.com/docs/git/vercel-for-github#missing-git-repository), plus GitHub's [workflow-run trigger](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run) and [workflow token event behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow).
+
 ## Environment separation
 
 | Setting | Development | Preview/staging | Production |

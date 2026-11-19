@@ -1,6 +1,8 @@
 # Connect Supabase, Railway and Vercel from VS Code
 
-The production backend runs on the `careerprep-ai` service in Railway's `capable-unity` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-89bf.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations. The production service still needed the Storage and Groq credentials, and the public Vercel builds still needed to be connected to this backend. Recheck these settings before release.
+The production backend runs on the `careerprep-ai` service in Railway's `capable-unity` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-89bf.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations; Storage and Groq credentials were still missing at that time. The [November 19–20 hosted rehearsal](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) subsequently passed private file operations and live AI workflows. The remaining frontend deployment and owner configuration are detailed below.
+
+The [November 20 setup deployment](06-sprint-log.md#frontend-production-update--november-20-2026-asiamanila) configured the three public Vercel Production settings, changed Node.js to 22.x and deployed tested commit `3998f66` to the submitted demo URL. Its accepted alias and retained application data were verified. Automatic frontend delivery and the final release gates still require owner/team action; the manual setup is not the recorded Deployment Challenge.
 
 ## 1. Open the project terminal
 
@@ -24,7 +26,17 @@ supabase config diff --remote=pvarmnhsotxuoqtvcwcb
 
 Compare each version in [the migration directory](../supabase/migrations) with the remote ledger. All six versions through `20261108100000` matched in the release audit. If the ledger differs, review the diff and dry-run pending migrations before applying them. The `resumes` bucket should be private and allow PDFs and DOCX files up to 10 MiB.
 
-Auth confirmation returns to `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. The declared settings are in [config.toml](../supabase/config.toml). Review a diff before any future push; unrelated remote settings should stay untouched.
+The declared Auth confirmation destination is `https://careerprep-ai-demo-221a.vercel.app`; exact local and recorded review URLs are allowed too. These target settings are in [config.toml](../supabase/config.toml). Compare them with the hosted settings before applying a reviewed configuration update.
+
+### Signup email limits
+
+The November 19, 2026 dashboard check found custom SMTP disabled. The signed-in collaborator could view the setting but its toggle was disabled. A signup error such as `over_email_send_rate_limit` means confirmation mail could not be sent; it is not proof that account creation or email confirmation succeeded.
+
+Supabase's built-in sender currently allows two emails per hour per project and only sends to organization team addresses. It is intended for testing. Public signup requires a custom SMTP provider or Send Email hook. See [Supabase SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp) and [Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits).
+
+An owner or administrator with permission to edit Auth settings should open **CareerPrep AI > Authentication > Emails > SMTP Settings**, enable custom SMTP, and enter the team's provider host, port, username, password, and verified sender address directly in Supabase. Keep credentials out of the frontend, Git, screenshots, and chat. Keep email confirmation enabled and review the email quota against the provider's allowance.
+
+After configuration, use an email address controlled by the tester for one signup, follow the received confirmation link back to the deployed website, and verify sign-in. Record the result. An existing confirmed account can use password sign-in while signup mail is limited. Repeated signup attempts consume requests and do not repair email delivery.
 
 ## 3. Configure the existing Railway service
 
@@ -41,7 +53,7 @@ Select the existing project rather than creating another:
 railway link
 ```
 
-Choose `capable-unity`, the `production` environment and the existing `careerprep-ai` service. In **Variables**, check the setting names against [the setup guide](08-setup-and-api.md). The production audit found `DATABASE_URL`, `DATABASE_SSL_CA`, `FRONTEND_URL`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `GROQ_MODEL`.
+Choose `capable-unity`, the `production` environment and the existing `careerprep-ai` service. In **Variables**, check the setting names against [the setup guide](08-setup-and-api.md). The November 19 inspection found `DATABASE_URL`, `DATABASE_SSL_CA`, `FRONTEND_URL`, `NODE_ENV`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, and `GROQ_MODEL`, without inspecting values. The signed-in rehearsal independently verified Storage and Groq operations. Do not replace working credentials simply because older records list them as missing. If credentials later need provisioning or rotation:
 
 - The Supabase project owner should enter the server-only legacy JWT `service_role` key as `SUPABASE_SERVICE_ROLE_KEY` directly in Railway. The deployed Storage client sends it as both `apikey` and a bearer token. A modern `sb_secret_…` key uses a different header convention and would require a client change. [Supabase key compatibility](https://supabase.com/docs/guides/getting-started/api-keys#known-limitations)
 - The Groq key owner should add a fresh `GROQ_API_KEY` to the same service. Store both credentials only in Railway and keep the database migration credential in the operator environment.
@@ -61,13 +73,13 @@ Check [the production API's readiness](https://careerprep-ai-production-89bf.up.
 
 ## 4. Finish Vercel
 
-Confirm which frontend URL the team will submit and have that Vercel project's owner update it. In the release audit, [careerprep-ai-seven.vercel.app](https://careerprep-ai-seven.vercel.app) served an older build without a Railway API URL. The repository's public link, [careerprep-ai-ten.vercel.app](https://careerprep-ai-ten.vercel.app), called the older Railway service, whose `/ready` returned HTTP 503.
+The accepted demo URL is [careerprep-ai-demo-221a.vercel.app](https://careerprep-ai-demo-221a.vercel.app), in the Vercel scope `wazapzjavellana-2496`. Its November 15 manual build calls the working Railway API, but the November 19 inspection found that it still lacked the newest merged frontend fixes. Older `careerprep-ai-seven` and `careerprep-ai-ten` links are historical setup deployments and should not be used for submission.
 
-In **Settings > Environment Variables**, set the Production value of `NEXT_PUBLIC_API_URL` to `https://careerprep-ai-production-89bf.up.railway.app`. Verify the public Supabase Auth settings and the matching redirect URL for the selected site. Deploy the checked `main` commit after saving the setting, because Next.js embeds `NEXT_PUBLIC_` values at build time. Confirm the deployed revision before testing in the browser.
+In **Settings > Environment Variables**, configure Production variables `NEXT_PUBLIC_API_URL` (the working Railway API), `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (a public anon or publishable key). No stored Production variables were present at the November 19 inspection, despite the old build having public settings embedded. Verify the matching Auth redirect URL, approve and set the project's Node.js version to `22.x` to match CI, then deploy the checked revision. Next.js embeds `NEXT_PUBLIC_` values at build time. Confirm the deployed revision before repeating browser acceptance.
 
 From this linked checkout, `vercel deploy --environment preview` creates a review deployment; `vercel deploy --prod` publishes production. Use a clean source archive for manual uploads, as above, or inspect `vercel deploy --dry --json` first to ensure ignored credentials and local files are excluded. A complete release still requires the reviewed commit and passing CI.
 
-The attempted Git connection failed because this account does not own `s2301945-rgb/careerprep-ai`. Vercel's [GitHub integration requirements](https://vercel.com/docs/git/vercel-for-github) require ownership for personal repositories. The repository owner must resolve hosting/repository ownership and authorize the integration. Do not change repository ownership, create substitute history or claim automatic deployment is configured just because CLI upload works.
+The attempted native Git connection failed because this account does not own `s2301945-rgb/careerprep-ai`. Vercel's [GitHub integration requirements](https://vercel.com/docs/git/vercel-for-github) require ownership for personal repositories. The alternative [CI-gated Vercel workflow](07-pipeline-and-environments.md#frontend-deployment-after-main-ci) requires the repository owner to add the three documented Actions secrets, plus public deployment target variables. A workflow file or manual upload alone does not prove automatic deployment works. Record the first successful deployment of the tested SHA to the accepted alias.
 
 ## 5. Accept the deployed increment
 
