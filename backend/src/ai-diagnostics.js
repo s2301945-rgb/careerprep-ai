@@ -22,9 +22,9 @@ const validationFields = new Set([
 ]);
 const validationRules = new Set([
   "invalid_type", "empty", "max_length", "forbidden_control", "max_items", "source_quote",
-  "score_range", "unknown_skill", "invalid_json", "max_bytes", "missing_content",
+  "score_range", "unknown_skill", "invalid_json", "max_bytes", "missing_content", "source_reference",
 ]);
-const validationLimits = new Set([8, 12, 20, 30, 80, 100, 160, 240, 300, 350, 400, 700, 900, 80_000, 128 * 1024]);
+const validationLimits = new Set([8, 12, 20, 30, 80, 100, 160, 240, 300, 350, 400, 401, 700, 900, 80_000, 128 * 1024]);
 
 export function withAiDiagnostics(error, diagnostic) {
   errorDiagnostics.set(error, { ...errorDiagnostics.get(error), ...diagnostic });
