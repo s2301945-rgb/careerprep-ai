@@ -66,6 +66,30 @@ Vercel's Git connection attempt to `s2301945-rgb/careerprep-ai` failed. Current 
 
 Read-only checks against the currently documented public URLs returned HTTP 200 from the Vercel homepage and Railway `/ready`; the API reported `backend: connected` and `database: connected`. `GET /api/v1/resumes` without a session returned 401, and an OPTIONS preflight from `https://careerprep-ai-seven.vercel.app` returned 204 with that exact allowed origin. The homepage's loaded JavaScript did not contain the documented Railway API URL. This smoke does not establish the frontend's deployed API configuration or a signed-in user journey. Resume CRUD, AI, job comparison, interview completion, two-user isolation, the deployed revision and release review remain unverified here.
 
+## Signed-in hosted acceptance — November 19–20, 2026 (Asia/Manila)
+
+This rehearsal used the deployed [demo website](https://careerprep-ai-demo-221a.vercel.app) and the [Railway API](https://careerprep-ai-production-89bf.up.railway.app). Railway deployment `0377a9da-f4f0-4f83-be11-78d3e353c2ed` served `main` commit `9f9608043f042e713a48890cf8897030a0b3755a`, including merged [PR #38](https://github.com/s2301945-rgb/careerprep-ai/pull/38). Its [main CI](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44544317707) and [production smoke](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44544447665) passed. No submitted teammate review was found on PR #38. The frontend was an older November 15 manual deployment; the merged resume-library and stale-analysis UI fixes were not present in its assets. Local signup handling commit `4b0a211` was not published or deployed during this rehearsal.
+
+| Check | Actual result |
+| --- | --- |
+| Sign-in | Passed with an existing confirmed demo account. This does not test public signup or confirmation email delivery. |
+| Create/read/update | A fictional PDF was uploaded, listed, opened, and renamed to `Release acceptance synthetic resume — verified 19 Nov`. |
+| Private download | The downloaded PDF matched the original 897-byte fixture. Both SHA-256 hashes were `93d0ff24dd4c44d8e3f7beee4458aec150a88fa8f5d6af88af1e393c0af16132`. |
+| Extraction and profile review | Live extraction succeeded. The draft summary was edited, an incorrect experience item was removed, and the profile was confirmed. |
+| Resume analysis | Live Groq analysis completed and saved a score of 8/100. The four rubric values averaged to 7.75, rounded to 8. This checks persistence and arithmetic; numeric model calibration remains unverified. |
+| Job matching | A saved synthetic junior-backend job produced a saved 40/100 match with cited requirements. |
+| Complete interview | All five answers were evaluated and saved. Scores were 83.5, 86.5, 78.33, 84, and 72.22; the displayed overall mean was 80.91/100. These are fictional practice answers, not claims about a teammate's work. |
+| Reload persistence | After a page reload and reopening the resume, its title, confirmed profile, analysis, job comparison, five answers, feedback, and overall score were still present. |
+| Delete | Not exercised in this run. The user requested that this synthetic resume and its results remain available for the demo. |
+| Current two-account isolation | Not exercised in this run; one confirmed test account was available. CI/PostgreSQL ownership coverage and earlier provider rehearsals are separate evidence. |
+| Other format and error cases | DOCX, token expiry, oversized/malformed upload, and forced provider/storage failures were not repeated in this hosted run. Their automated or earlier results do not replace current release acceptance. |
+
+The [structured record](evidence/hosted-release-acceptance-2026-11-19.json) lists the scope and remaining gates. The [saved interview screenshot](evidence/hosted-release-interview-2026-11-19.jpg) shows the completed persisted interview. The test data was retained, with no deletion attempted after the user's instruction.
+
+At this inspection `Protect main` required a pull request but zero approving reviews and no mandatory CI checks. The Vercel project `wazapzjavellana-2496/careerprep-ai-demo-221a` had no Git connection or stored Production variables and used Node.js 26.x. Preparing a deployment workflow does not activate it. The owner must configure its documented settings and secrets, publish the reviewed release revision, and verify that the submitted URL serves that exact deployment before the frontend fixes are accepted live.
+
+Full release acceptance remains open: deploy the current frontend, finish the two-account and remaining hosted checks, enforce the three CI checks and one real teammate review, record actual sprint/course evidence, rehearse rollback, and publish the annotated release only after verification. Public signup mail is deferred at the user's request while the confirmed demo account is used.
+
 ## Process and remaining evidence
 
 Exactly four project roles are confirmed: frontend, primary backend, AI/ML plus backup backend, and one dedicated DevOps engineer. Names, personal availability and credential owners remain open in the [decision log](04-discovery-and-decisions.md). Do not invent assignments or completed standups.

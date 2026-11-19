@@ -1,0 +1,258 @@
+name: Frontend Production Deployment
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+concurrency:
+  group: frontend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy tested main to Vercel
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Select current main with successful CI
+        id: source
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const repository = context.repo;
+            const { data: main } = await github.rest.git.getRef({ ...repository, ref: 'heads/main' });
+            const sourceSha = main.object.sha;
+            const triggeringRun = context.payload.workflow_run;
+            if (triggeringRun && triggeringRun.head_sha !== sourceSha) {
+              core.notice('Skipping CI for a superseded main commit.');
+              core.setOutput('deploy', 'false');
+              return;
+            }
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              ...repository, workflow_id: 'ci.yml', branch: 'main', event: 'push',
+              status: 'success', head_sha: sourceSha, per_page: 1,
+            });
+            const passedRun = data.workflow_runs.find(run =>
+              run.head_sha === sourceSha && run.conclusion === 'success' &&
+              run.head_repository?.full_name === `${repository.owner}/${repository.repo}`);
+            if (!passedRun) throw new Error('Current main needs successful push-triggered CI before deployment.');
+            core.setOutput('sha', sourceSha);
+            core.setOutput('ci_run_id', String(passedRun.id));
+            core.setOutput('deploy', 'true');
+
+      - name: Checkout verified main commit
+        if: steps.source.outputs.deploy == 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
+
+      - name: Check deployment secret names
+        if: steps.source.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing GitHub Actions secret $name."
+              exit 1
+            fi
+          done
+
+      - name: Set up pnpm
+        if: steps.source.outputs.deploy == 'true'
+        uses: pnpm/action-setup@v5
+        with:
+          version: 11.25.0
+
+      - name: Set up the deployment Node.js version
+        if: steps.source.outputs.deploy == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install pinned Vercel CLI
+        if: steps.source.outputs.deploy == 'true'
+        run: npm install --global vercel@66.2.0
+
+      - name: Pull production settings
+        if: steps.source.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Validate public frontend configuration
+        if: steps.source.outputs.deploy == 'true'
+        run: |
+          node --input-type=module <<'NODE'
+          process.loadEnvFile('.vercel/.env.production.local');
+          const required = ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'];
+          const missing = required.filter(name => !process.env[name]?.trim());
+          if (missing.length) throw new Error(`Missing Vercel Production variables: ${missing.join(', ')}.`);
+          for (const name of ['NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_SUPABASE_URL']) {
+            let url;
+            try { url = new URL(process.env[name]); } catch { throw new Error(`${name} must be a valid HTTPS URL.`); }
+            if (url.protocol !== 'https:' || url.username || url.password) throw new Error(`${name} must be an HTTPS URL without credentials.`);
+          }
+          const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim();
+          let publicKey = key.startsWith('sb_publishable_');
+          if (!publicKey) {
+            try {
+              const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8'));
+              publicKey = payload.role === 'anon';
+            } catch {}
+          }
+          if (!publicKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY must be a public publishable or anon key.');
+          console.log('Required public frontend settings are configured.');
+          NODE
+
+      - name: Build production artifacts
+        if: steps.source.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Recheck main immediately before deployment
+        if: steps.source.outputs.deploy == 'true'
+        id: current
+        uses: actions/github-script@v8
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        with:
+          script: |
+            const { data } = await github.rest.git.getRef({ ...context.repo, ref: 'heads/main' });
+            const isCurrent = data.object.sha === process.env.SOURCE_SHA;
+            if (!isCurrent) core.notice('Skipping build superseded by a newer main commit.');
+            core.setOutput('deploy', String(isCurrent));
+
+      - name: Record production deployment in progress
+        if: steps.current.outputs.deploy == 'true'
+        id: deployment
+        uses: actions/github-script@v8
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          CI_RUN_ID: ${{ steps.source.outputs.ci_run_id }}
+        with:
+          script: |
+            const { data } = await github.rest.repos.createDeployment({
+              ...context.repo, ref: process.env.SOURCE_SHA, auto_merge: false,
+              required_contexts: [], environment: 'Production', production_environment: true,
+              description: 'Frontend deployment after successful main CI',
+              payload: { source_commit: process.env.SOURCE_SHA, ci_run_id: process.env.CI_RUN_ID },
+            });
+            core.setOutput('id', String(data.id));
+            await github.rest.repos.createDeploymentStatus({
+              ...context.repo, deployment_id: data.id, state: 'in_progress', auto_inactive: false,
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Deploy production build and wait for readiness
+        if: steps.current.outputs.deploy == 'true'
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          deployment_url=$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN" \
+            --meta sourceCommit="$SOURCE_SHA" --meta githubActionsRun="$GITHUB_RUN_ID")
+          if [[ ! "$deployment_url" =~ ^https://[^[:space:]]+$ ]]; then
+            echo "::error::Vercel did not return a deployment URL."
+            exit 1
+          fi
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $SOURCE_SHA to $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify production URL points to this deployment
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PRODUCTION_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL }}
+          DEPLOYMENT_URL: ${{ steps.vercel.outputs.url }}
+        run: |
+          node --input-type=module <<'NODE'
+          function originUrl(name) {
+            let url;
+            try { url = new URL(process.env[name]); } catch { throw new Error(`${name} must be an HTTPS origin.`); }
+            if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+                url.pathname !== '/' || url.search || url.hash) {
+              throw new Error(`${name} must be an HTTPS origin without credentials, a port, a path, or a query.`);
+            }
+            return url;
+          }
+          const frontend = originUrl('PRODUCTION_FRONTEND_URL');
+          const deployment = originUrl('DEPLOYMENT_URL');
+          const endpoint = new URL(`https://api.vercel.com/v4/aliases/${encodeURIComponent(frontend.hostname)}`);
+          endpoint.searchParams.set('teamId', process.env.VERCEL_ORG_ID);
+          endpoint.searchParams.set('projectId', process.env.VERCEL_PROJECT_ID);
+          let verified = false;
+          for (let attempt = 1; attempt <= 6; attempt++) {
+            let response;
+            let alias;
+            try {
+              response = await fetch(endpoint, {
+                headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` },
+                signal: AbortSignal.timeout(10000), redirect: 'error',
+              });
+              if (response.ok) alias = await response.json();
+            } catch {}
+            if (response?.status === 401 || response?.status === 403) {
+              throw new Error('Vercel alias verification was rejected. Check deployment token access.');
+            }
+            if (alias?.projectId === process.env.VERCEL_PROJECT_ID &&
+                alias.deployment?.url === deployment.hostname) {
+              verified = true;
+              break;
+            }
+            if (attempt < 6) await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          if (!verified) throw new Error('Production URL could not be verified against the newly deployed frontend.');
+          console.log('Production URL points to the newly deployed frontend.');
+          NODE
+
+      - name: Check production frontend wiring and API
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          SMOKE_FRONTEND_URL: ${{ vars.PRODUCTION_FRONTEND_URL }}
+          SMOKE_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: node scripts/smoke.mjs
+
+      - name: Record final deployment result
+        if: always() && steps.deployment.outputs.id != ''
+        uses: actions/github-script@v8
+        env:
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+          DEPLOYMENT_URL: ${{ steps.vercel.outputs.url }}
+          DEPLOYMENT_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              ...context.repo, deployment_id: Number(process.env.DEPLOYMENT_ID),
+              state: process.env.DEPLOYMENT_STATE, auto_inactive: false,
+              ...(process.env.DEPLOYMENT_URL ? { environment_url: process.env.DEPLOYMENT_URL } : {}),
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Remove downloaded production environment file
+        if: always()
+        run: rm -f .vercel/.env.production.local

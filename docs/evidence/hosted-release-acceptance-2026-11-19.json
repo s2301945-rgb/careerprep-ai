@@ -1,0 +1,63 @@
+{
+  "observedDatesAsiaManila": ["2026-11-19", "2026-11-20"],
+  "scope": "Signed-in browser rehearsal with one existing confirmed demo account and fictional data. This is not full release acceptance.",
+  "frontend": {
+    "url": "https://careerprep-ai-demo-221a.vercel.app",
+    "project": "wazapzjavellana-2496/careerprep-ai-demo-221a",
+    "deployment": "Older November 15 manual build; exact source commit not established",
+    "apiOriginMarker": "https://careerprep-ai-production-89bf.up.railway.app",
+    "latestMergedUiFixesPresent": false
+  },
+  "backend": {
+    "url": "https://careerprep-ai-production-89bf.up.railway.app",
+    "project": "capable-unity",
+    "service": "careerprep-ai",
+    "environment": "production",
+    "deploymentId": "0377a9da-f4f0-4f83-be11-78d3e353c2ed",
+    "sourceCommit": "9f9608043f042e713a48890cf8897030a0b3755a",
+    "status": "SUCCESS"
+  },
+  "repository": {
+    "pr38": "https://github.com/s2301945-rgb/careerprep-ai/pull/38",
+    "pr38Status": "merged",
+    "pr38SubmittedTeammateReviews": 0,
+    "mainCi": "https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44544317707",
+    "mainCiResult": "success",
+    "productionSmoke": "https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44544447665",
+    "productionSmokeResult": "success",
+    "localSignupFix": "4b0a211",
+    "localSignupFixPublishedOrDeployedAtObservation": false
+  },
+  "fixture": {
+    "type": "Fictional text-based PDF",
+    "bytes": 897,
+    "renamedTitle": "Release acceptance synthetic resume — verified 19 Nov",
+    "uploadAndDownloadSha256": "93d0ff24dd4c44d8e3f7beee4458aec150a88fa8f5d6af88af1e393c0af16132",
+    "retained": true,
+    "retentionReason": "User requested keeping this resume and results for the demo."
+  },
+  "checks": [
+    {"name": "existing_confirmed_account_sign_in", "status": "passed"},
+    {"name": "upload_list_open_and_rename_pdf", "status": "passed"},
+    {"name": "authenticated_download_matches_source_bytes", "status": "passed"},
+    {"name": "live_extraction_edit_and_confirm_profile", "status": "passed"},
+    {"name": "live_resume_analysis_saved", "status": "passed", "score": 8, "rubric": [8, 9, 8, 6], "limitation": "Arithmetic and persistence verified; numeric model calibration unverified."},
+    {"name": "live_job_comparison_saved", "status": "passed", "score": 40},
+    {"name": "complete_five_answer_interview", "status": "passed", "answerScores": [83.5, 86.5, 78.33, 84, 72.22], "overallScore": 80.91},
+    {"name": "profile_analysis_match_and_interview_persist_after_reload", "status": "passed"},
+    {"name": "delete_current_test_record", "status": "not_exercised", "reason": "User requested retention for the demo."},
+    {"name": "current_two_account_ownership_isolation", "status": "not_exercised", "reason": "Only one confirmed test account was available in this rehearsal."},
+    {"name": "public_signup_and_confirmation_email", "status": "deferred_by_user"},
+    {"name": "current_hosted_docx_expired_token_invalid_upload_and_forced_failures", "status": "not_exercised"}
+  ],
+  "screenshot": "hosted-release-interview-2026-11-19.jpg",
+  "releaseGatesRemaining": [
+    "Publish and deploy the current reviewed frontend, verify the accepted alias resolves to that deployment, and repeat relevant acceptance.",
+    "Configure and exercise the prepared frontend deployment workflow; its file alone is not proof of automatic deployment.",
+    "Finish current two-user isolation and remaining hosted acceptance cases.",
+    "Require the three CI jobs and one approving teammate review in Protect main; collect real review evidence.",
+    "Rehearse rollback and attach actual sprint/course process evidence.",
+    "Publish the annotated release tag only after final acceptance and authorization."
+  ],
+  "redaction": "No passwords, tokens, private variable values, account identifiers, object paths, or source document contents are included."
+}

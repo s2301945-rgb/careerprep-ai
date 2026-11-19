@@ -1,6 +1,8 @@
 # CareerPrep AI
 
-CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. The current feature branch includes sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, AI resume analysis, saved job comparisons, and five-question text mock interviews. Job matching and interviews have local automated coverage but have not been verified against live Groq or a hosted signed-in deployment.
+CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. It includes sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, AI resume analysis, saved job comparisons, and five-question text mock interviews. A signed-in rehearsal with synthetic data verified PDF upload, rename and private download, profile extraction and confirmation, saved analysis, job matching, a complete interview, and persistence after reload. See the [dated acceptance record](docs/06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) for the tested deployments and remaining checks.
+
+[Open CareerPrep AI](https://careerprep-ai-demo-221a.vercel.app). The app uses the [Railway API](https://careerprep-ai-production-89bf.up.railway.app), whose [readiness endpoint](https://careerprep-ai-production-89bf.up.railway.app/ready) checks the private application database.
 
 ## How it works
 
@@ -69,4 +71,4 @@ The normal tests mock Groq. With a development key set on the backend, run `npm 
 
 ## Release status
 
-The current branch is a release candidate in development. Earlier deployments and CI results are listed as evidence in the [sprint record](docs/06-sprint-log.md). Use the [cloud setup guide](docs/09-cloud-setup.md) and [release checklist](CHANGELOG.md#release-checklist) to verify a reviewed commit on the deployed frontend and backend before publishing a release tag. The [documentation index](docs/README.md) links the course instructions and other design records.
+The signed-in demo workflow passed on the deployments recorded in the [sprint record](docs/06-sprint-log.md). The latest frontend fixes and deployment automation still need a verified production deployment. Public signup email delivery is deferred while an existing confirmed account is used. Current-run deletion and two-user isolation, enforced review and CI gates, rollback rehearsal, actual course process evidence, and the tagged release remain open in the [release checklist](CHANGELOG.md#release-checklist). See the [cloud setup guide](docs/09-cloud-setup.md) and [documentation index](docs/README.md) for the handoff.
