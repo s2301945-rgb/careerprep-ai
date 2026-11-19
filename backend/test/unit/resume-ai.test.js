@@ -239,6 +239,19 @@ test("provider timeouts and interrupted response bodies return retryable AI erro
   }
 });
 
+test("unreadable rejection bodies preserve the existing provider error classifications", async () => {
+  for (const [status, code, retryable] of [
+    [400, "AI_REQUEST_REJECTED", false], [401, "AI_PROVIDER_AUTH", false],
+    [429, "AI_PROVIDER_RATE_LIMITED", true], [500, "AI_PROVIDER_UNAVAILABLE", true],
+  ]) {
+    const ai = createResumeAI({
+      apiKey: "test-only", model: "openai/gpt-oss-20b",
+      fetchImpl: async () => new Response(new ReadableStream({ pull(controller) { controller.error(new Error("synthetic unreadable body")); } }), { status }),
+    });
+    await assert.rejects(ai.extractProfile(evaluationSet[0].resume_text), { code, retryable });
+  }
+});
+
 test("missing Groq credentials are reported honestly without making a request", async () => {
   const ai = createResumeAI({ apiKey: "", model: "test/model", fetchImpl: () => { throw new Error("must not call"); } });
   await assert.rejects(ai.extractProfile(evaluationSet[0].resume_text), { code: "AI_NOT_CONFIGURED" });

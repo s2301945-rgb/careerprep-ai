@@ -4,6 +4,7 @@ import { after, before, beforeEach, test } from "node:test";
 import { createApp } from "../../src/server.js";
 import { ApiError } from "../../src/errors.js";
 import { createResumeAiGuard } from "../../src/resume-ai-guard.js";
+import { createResumeAI } from "../../src/resume-ai.js";
 
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 const ALLOWED_ORIGIN = "https://careerprep.example";
@@ -40,6 +41,7 @@ const state = {
   analyses: new Map(),
   analysisRevisions: new Map(),
   beforeAnalyze: null,
+  errorLogs: [],
   removeFailures: 0,
   lastDownloadPath: null,
   lastUploadPath: null,
@@ -331,7 +333,7 @@ before(async () => {
         };
       },
     },
-    logger: { error() {} },
+    logger: { error(message) { state.errorLogs.push(message); } },
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -346,6 +348,7 @@ beforeEach(() => {
   state.analyses.clear();
   state.analysisRevisions.clear();
   state.beforeAnalyze = null;
+  state.errorLogs = [];
   state.removeFailures = 0;
   state.lastDownloadPath = null;
   state.lastUploadPath = null;
@@ -463,6 +466,47 @@ test("resume analysis reports a concurrent profile edit instead of saving an out
   assert.equal(latest.status, "failed");
   assert.equal(latest.is_stale, true);
   assert.equal(Object.hasOwn(latest, "source_snapshot"), false);
+});
+
+test("AI diagnostics correlate safe provider and field-limit categories without exposing private content", async () => {
+  const uploaded = await uploadResume(baseUrl, { filename: "Synthetic.pdf", buffer: textPdf(AI_RESUME_TEXT) });
+  const resumeId = (await uploaded.json()).resume.id;
+  const extracted = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/extract`, { method: "POST", headers: authHeader() });
+  const profile = (await extracted.json()).profile;
+  await repository.confirmResumeProfile("7001", resumeId, profile);
+  const privateMarker = "SYNTHETIC_PRIVATE_SENTINEL_9347";
+  const rejectedPayload = { error: {
+    message: `Rejected ${privateMarker}`, failed_generation: privateMarker,
+    code: "json_validate_failed", type: "invalid_request_error",
+  } };
+  const oversizedOutput = {
+    summary: "Synthetic analysis.", strengths: [], weaknesses: [], recommendations: [], skill_assessments: [],
+    missing_sections: [{ section: "Projects", reason: `${privateMarker}${"x".repeat(241)}` }],
+    rubric: { clarity: 70, relevance: 70, evidence: 50, completeness: 40 },
+  };
+  const cases = [
+    { response: () => new Response(JSON.stringify(rejectedPayload), { status: 400 }), code: "AI_REQUEST_REJECTED", message: "The AI provider rejected this resume request.",
+      diagnostic: { provider_http_status: 400, provider_error_code: "json_validate_failed", provider_error_type: "invalid_request_error" } },
+    { response: () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(oversizedOutput) } }] })), code: "AI_RESPONSE_INVALID", message: "The AI provider returned resume content in an unexpected format.",
+      diagnostic: { validation_field: "missing_sections[].reason", validation_rule: "max_length", validation_limit: 240 } },
+  ];
+  for (const example of cases) {
+    aiClock += 60_000;
+    state.errorLogs = [];
+    const ai = createResumeAI({ apiKey: privateMarker, model: "openai/gpt-oss-20b", fetchImpl: async () => example.response() });
+    state.beforeAnalyze = () => ai.analyze(`Synthetic source ${privateMarker}`, profile);
+    const response = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { method: "POST", headers: authHeader() });
+    const body = await response.json();
+    assert.equal(response.status, 502);
+    assert.equal(body.error.code, example.code);
+    assert.equal(body.error.message, example.message);
+    assert.equal(body.error.details, undefined);
+    assert.deepEqual(state.errorLogs.map((line) => JSON.parse(line)), [{
+      request_id: body.error.request_id, code: "AI_DIAGNOSTIC", operation: "resume_analysis", ...example.diagnostic,
+    }]);
+    assert.equal(JSON.stringify([body, state.errorLogs]).includes(privateMarker), false);
+    assert.equal(JSON.stringify([body, state.errorLogs]).includes("failed_generation"), false);
+  }
 });
 
 test("resume AI limits concurrent work and aggregate starts, then recovers as slots and time windows expire", () => {

@@ -1,4 +1,5 @@
 import { ApiError } from "./errors.js";
+import { readProviderRejection, withAiDiagnostics } from "./ai-diagnostics.js";
 
 const PROMPT_VERSION = "job-match-v3";
 const RUBRIC_VERSION = "job-match-v1";
@@ -89,10 +90,12 @@ export function createJobMatcher({ apiKey, model, fetchImpl = fetch }) {
       throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Job matching AI could not be reached.", true);
     }
     if (!response.ok) {
-      await response.body?.cancel();
-      if (response.status === 401 || response.status === 403) throw new ApiError(503, "AI_PROVIDER_AUTH", "Job matching AI credentials were rejected.");
-      if (response.status === 429 || response.status >= 500) throw new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Job matching AI is temporarily unavailable.", true);
-      throw new ApiError(502, "AI_REQUEST_REJECTED", "Job matching AI rejected the request.");
+      const diagnostic = await readProviderRejection(response);
+      let error;
+      if (response.status === 401 || response.status === 403) error = new ApiError(503, "AI_PROVIDER_AUTH", "Job matching AI credentials were rejected.");
+      else if (response.status === 429 || response.status >= 500) error = new ApiError(503, "AI_PROVIDER_UNAVAILABLE", "Job matching AI is temporarily unavailable.", true);
+      else error = new ApiError(502, "AI_REQUEST_REJECTED", "Job matching AI rejected the request.");
+      throw withAiDiagnostics(error, { ...diagnostic, operation: "job_match" });
     }
     const contentLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(contentLength) && contentLength > 128 * 1024) throw new ApiError(502, "AI_RESPONSE_INVALID", "Job matching AI returned too much data.");
