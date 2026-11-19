@@ -1,7 +1,17 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+
+function authErrorMessage(error: { code?: string; status?: number; message: string }) {
+  if (error.code === "over_email_send_rate_limit" || (!error.code && error.message === "email rate limit exceeded")) {
+    return "The confirmation email could not be sent because the email sending limit was reached. Try again later. If you already confirmed your email, choose Sign in.";
+  }
+  if (error.code === "over_request_rate_limit" || error.status === 429) {
+    return "Too many authentication requests. Please try again later.";
+  }
+  return error.message;
+}
 
 export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
   const [mode, setMode] = useState<"sign_in" | "sign_up">("sign_in");
@@ -10,10 +20,12 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const submissionInProgress = useRef(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase) return;
+    if (!supabase || submissionInProgress.current) return;
+    submissionInProgress.current = true;
     setPending(true);
     setNotice("");
     setError("");
@@ -21,7 +33,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
     try {
       if (mode === "sign_in") {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (signInError) setError(signInError.message);
+        if (signInError) setError(authErrorMessage(signInError));
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
@@ -29,7 +41,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
           options: { emailRedirectTo: window.location.origin },
         });
         if (signUpError) {
-          setError(signUpError.message);
+          setError(authErrorMessage(signUpError));
         } else if (!data.session) {
           setNotice("Check your inbox for the confirmation link. You can sign in after confirming your email.");
         }
@@ -37,6 +49,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
     } catch {
       setError("Authentication could not be completed. Check your connection and try again.");
     } finally {
+      submissionInProgress.current = false;
       setPending(false);
     }
   }
@@ -87,6 +100,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
             <label className="field-label" htmlFor="auth-email">Email</label>
             <input
               autoComplete="email"
+              disabled={pending}
               id="auth-email"
               name="email"
               onChange={(event) => setEmail(event.target.value)}
@@ -101,6 +115,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
             </div>
             <input
               autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
+              disabled={pending}
               id="auth-password"
               minLength={mode === "sign_up" ? 8 : 1}
               name="password"

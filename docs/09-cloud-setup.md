@@ -24,7 +24,17 @@ supabase config diff --remote=pvarmnhsotxuoqtvcwcb
 
 Compare each version in [the migration directory](../supabase/migrations) with the remote ledger. All six versions through `20261108100000` matched in the release audit. If the ledger differs, review the diff and dry-run pending migrations before applying them. The `resumes` bucket should be private and allow PDFs and DOCX files up to 10 MiB.
 
-Auth confirmation returns to `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. The declared settings are in [config.toml](../supabase/config.toml). Review a diff before any future push; unrelated remote settings should stay untouched.
+The declared Auth confirmation destination is `https://careerprep-ai-demo-221a.vercel.app`; exact local and recorded review URLs are allowed too. These target settings are in [config.toml](../supabase/config.toml). Compare them with the hosted settings before applying a reviewed configuration update.
+
+### Signup email limits
+
+The November 19, 2026 dashboard check found custom SMTP disabled. The signed-in collaborator could view the setting but its toggle was disabled. A signup error such as `over_email_send_rate_limit` means confirmation mail could not be sent; it is not proof that account creation or email confirmation succeeded.
+
+Supabase's built-in sender currently allows two emails per hour per project and only sends to organization team addresses. It is intended for testing. Public signup requires a custom SMTP provider or Send Email hook. See [Supabase SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp) and [Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits).
+
+An owner or administrator with permission to edit Auth settings should open **CareerPrep AI > Authentication > Emails > SMTP Settings**, enable custom SMTP, and enter the team's provider host, port, username, password, and verified sender address directly in Supabase. Keep credentials out of the frontend, Git, screenshots, and chat. Keep email confirmation enabled and review the email quota against the provider's allowance.
+
+After configuration, use an email address controlled by the tester for one signup, follow the received confirmation link back to the deployed website, and verify sign-in. Record the result. An existing confirmed account can use password sign-in while signup mail is limited. Repeated signup attempts consume requests and do not repair email delivery.
 
 ## 3. Configure the existing Railway service
 
