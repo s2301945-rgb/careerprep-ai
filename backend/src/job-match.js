@@ -12,8 +12,9 @@ function normalize(value) {
   return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase();
 }
 
-function bounded(value, max, optional = false) {
-  if (typeof value !== "string" || (!optional && !value.trim()) || Array.from(value).length > max || /[\u0000-\u001f\u007f]/.test(value)) {
+function bounded(value, max, { optional = false, multiline = false } = {}) {
+  const forbiddenControls = multiline ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/;
+  if (typeof value !== "string" || (!optional && !value.trim()) || Array.from(value).length > max || forbiddenControls.test(value)) {
     throw new ApiError(502, "AI_RESPONSE_INVALID", "The job comparison returned invalid content.");
   }
   return value.trim();
@@ -28,9 +29,9 @@ export function validateJobMatch(output, jobDescription, resumeText) {
   const seen = new Set();
   const requirements = output.requirements.map((item) => {
     const requirement = bounded(item?.requirement, 160);
-    const jobEvidence = bounded(item?.job_evidence, 350);
+    const jobEvidence = bounded(item?.job_evidence, 350, { multiline: true });
     const status = item?.status;
-    const resumeEvidence = bounded(item?.resume_evidence, 400, true);
+    const resumeEvidence = bounded(item?.resume_evidence, 400, { optional: true, multiline: true });
     const explanation = bounded(item?.explanation, 400);
     const key = normalize(requirement);
     if (seen.has(key) || protectedCriterion.test(requirement) || protectedCriterion.test(jobEvidence) || !job.includes(normalize(jobEvidence)) ||

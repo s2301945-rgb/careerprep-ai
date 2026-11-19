@@ -18,6 +18,20 @@ test("interview questions require the requested count, order, uniqueness and gro
   assert.throws(() => validateInterviewQuestions({ questions: [questions[0], questions[0], ...questions.slice(2)] }, 5, resume, job));
 });
 
+test("interview evidence stays within a single resume or job source", () => {
+  const resumeText = "Skills: JavaScript";
+  const jobText = "Python is required.";
+  const question = { ...questions[0], context_quote: "JavaScript Python" };
+
+  assert.throws(() => validateInterviewQuestions({ questions: [question] }, 1, resumeText, jobText), {
+    code: "AI_EVIDENCE_INVALID",
+  });
+  for (const context_quote of ["JavaScript", "Python is required.", ""]) {
+    assert.equal(validateInterviewQuestions({ questions: [{ ...question, context_quote }] }, 1, resumeText, jobText)[0].context_quote, context_quote);
+  }
+  assert.equal(validateInterviewQuestions({ questions: [{ ...question, context_quote: "JavaScript" }] }, 1, resumeText)[0].context_quote, "JavaScript");
+});
+
 test("answer scoring uses technical weight only for technical questions", () => {
   const output = { relevance: 80, clarity: 70, completeness: 60, examples: 90, technical: 50,
     feedback: "Good example, clarify the outcome.", strengths: ["Concrete project"], suggestions: ["Describe your impact"] };

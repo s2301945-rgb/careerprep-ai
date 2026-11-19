@@ -88,9 +88,9 @@ export function JobMatchPanel({ resumeId, onJobSaved }: { resumeId: string; onJo
     {actionError && <p className="notice notice-error" role="alert">{actionError}</p>}
     {notice && <p className="notice notice-success" role="status">{notice}</p>}
     <form className="job-match-form" onSubmit={(event) => void addJob(event)}>
-      <label>Job title (optional)<input maxLength={180} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-      <label>Company (optional)<input maxLength={180} value={company} onChange={(event) => setCompany(event.target.value)} /></label>
-      <label>Job description<textarea required minLength={1} maxLength={30000} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      <label>Job title (optional)<input disabled={busy} maxLength={180} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+      <label>Company (optional)<input disabled={busy} maxLength={180} value={company} onChange={(event) => setCompany(event.target.value)} /></label>
+      <label>Job description<textarea disabled={busy} required minLength={1} maxLength={30000} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <button className="button button-secondary" disabled={busy || jobsLoading || !!jobsError || !description.trim()} type="submit">{busy ? "Saving…" : "Save job description"}</button>
     </form>
     {jobsLoading ? <p role="status">Loading saved jobs…</p> : jobsError ? <div className="notice notice-error" role="alert">{jobsError} <button className="text-button" type="button" onClick={() => void refreshJobs()}>Retry loading jobs</button></div> : jobs.length === 0 ? <p>No saved jobs yet.</p> : <div className="job-match-saved">

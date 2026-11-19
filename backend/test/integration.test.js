@@ -273,7 +273,7 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
     rubric_version: "resume-rubric-v1",
   });
   assert.ok(analysisId);
-  const completedAnalysis = await repository.completeResumeAnalysis(userA.id, firstResume.id, analysisId, {
+  const analysisOutput = {
     result: {
       overall_score: 70,
       summary: "The profile has a measurable result.",
@@ -283,9 +283,11 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
       skill_assessments: [{ name: "JavaScript", score: 75, evidence: "Skills: JavaScript and SQL" }],
     },
     provider: "groq", model: "test/model", promptVersion: "test-v1", rubricVersion: "resume-rubric-v1",
-  });
+  };
+  const completedAnalysis = await repository.completeResumeAnalysis(userA.id, firstResume.id, analysisId, analysisOutput);
   assert.equal(completedAnalysis.status, "completed");
   assert.equal(completedAnalysis.overall_score, 70);
+  assert.equal(completedAnalysis.is_stale, false);
   assert.equal(completedAnalysis.rubric_scores.skill_assessments[0].name, "JavaScript");
   assert.equal((await repository.getLatestResumeAnalysis(userA.id, firstResume.id)).id, analysisId);
 
@@ -318,6 +320,39 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
     ...profileContent, summary: "Updated entry-level developer summary.",
   });
   assert.equal((await repository.latestJobMatch(userA.id, firstResume.id, savedJob.id)).is_stale, true);
+  const staleAnalysisResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/analysis`, { headers: authHeaders("user-a") });
+  assert.equal(staleAnalysisResponse.status, 200);
+  const staleAnalysis = (await staleAnalysisResponse.json()).analysis;
+  assert.equal(staleAnalysis.id, analysisId);
+  assert.equal(staleAnalysis.status, "completed");
+  assert.equal(staleAnalysis.is_stale, true);
+  assert.equal(Object.hasOwn(staleAnalysis, "source_snapshot"), false);
+  assert.equal(await repository.createResumeAnalysisRun(userA.id, firstResume.id, {
+    profile_revision: confirmedProfile.profile_revision,
+  }), null);
+
+  const interruptedAnalysisId = await repository.createResumeAnalysisRun(userA.id, firstResume.id, {
+    profile_revision: revisedProfile.profile_revision,
+  });
+  assert.ok(interruptedAnalysisId);
+  const nextProfile = await repository.confirmResumeProfile(userA.id, firstResume.id, {
+    ...profileContent, summary: "Another reviewed profile update during analysis.",
+  });
+  assert.equal(await repository.completeResumeAnalysis(userA.id, firstResume.id, interruptedAnalysisId, analysisOutput), null);
+  await repository.failResumeAnalysis(userA.id, firstResume.id, interruptedAnalysisId, "ANALYSIS_STATE_CHANGED");
+  assert.equal((await repository.getLatestResumeAnalysis(userA.id, firstResume.id)).status, "failed");
+
+  const freshAnalysisId = await repository.createResumeAnalysisRun(userA.id, firstResume.id, {
+    profile_revision: nextProfile.profile_revision,
+  });
+  assert.ok(await repository.completeResumeAnalysis(userA.id, firstResume.id, freshAnalysisId, analysisOutput));
+  const freshAnalysisResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/analysis`, { headers: authHeaders("user-a") });
+  assert.equal(freshAnalysisResponse.status, 200);
+  const freshAnalysis = (await freshAnalysisResponse.json()).analysis;
+  assert.equal(freshAnalysis.is_stale, false);
+  assert.equal(Object.hasOwn(freshAnalysis, "source_snapshot"), false);
+  await pool.query("UPDATE careerprep.resume_analyses SET source_snapshot = '{}'::jsonb WHERE id = $1", [freshAnalysis.id]);
+  assert.equal((await repository.getLatestResumeAnalysis(userA.id, firstResume.id)).is_stale, true);
 
   const interviewResponse = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/interviews`, {
     method: "POST", headers: { ...authHeaders("user-a"), "Content-Type": "application/json" },
@@ -349,7 +384,7 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   assert.equal(finished.overall_score, 75.05);
   assert.equal((await repository.listInterviews(userA.id, firstResume.id))[0].id, interview.id);
 
-  const staleMatchId = await repository.createJobMatchRun(userA.id, firstResume.id, savedJob.id, revisedProfile.profile_revision);
+  const staleMatchId = await repository.createJobMatchRun(userA.id, firstResume.id, savedJob.id, nextProfile.profile_revision);
   await pool.query("ALTER TABLE careerprep.job_matches DISABLE TRIGGER trg_job_matches_touch");
   await pool.query("UPDATE careerprep.job_matches SET updated_at = NOW() - INTERVAL '3 minutes' WHERE id = $1", [staleMatchId]);
   await pool.query("ALTER TABLE careerprep.job_matches ENABLE TRIGGER trg_job_matches_touch");

@@ -112,6 +112,7 @@ function mapAnalysis(row) {
     model_provider: row.model_provider,
     model_name: row.model_name,
     prompt_version: row.prompt_version,
+    is_stale: row.is_stale,
     created_at: iso(row.created_at),
     completed_at: row.completed_at ? iso(row.completed_at) : null,
   };
@@ -387,6 +388,7 @@ export function createRepository(pool) {
          FROM careerprep.resumes r
          JOIN careerprep.resume_profiles p ON p.resume_id = r.id AND p.user_id = r.user_id
          WHERE r.user_id = $1 AND r.id = $2 AND p.review_status = 'confirmed'
+           AND to_jsonb(p.profile_revision) = ($3::jsonb -> 'profile_revision')
          RETURNING id::text AS id`,
         [ownerUserId, resumeId, JSON.stringify(snapshot)],
       );
@@ -396,16 +398,20 @@ export function createRepository(pool) {
     async completeResumeAnalysis(ownerUserId, resumeId, analysisId, { result, provider, model, promptVersion, rubricVersion }) {
       const scores = { ...result.rubric_scores, skill_assessments: result.skill_assessments };
       const updated = await pool.query(
-        `UPDATE careerprep.resume_analyses SET status = 'completed', overall_score = $4,
+        `UPDATE careerprep.resume_analyses a SET status = 'completed', overall_score = $4,
            summary = $5, strengths = $6::jsonb, weaknesses = $7::jsonb,
            missing_sections = $8::jsonb, recommendations = $9::jsonb,
            rubric_scores = $10::jsonb, rubric_version = $11,
            model_provider = $12, model_name = $13, prompt_version = $14,
            error_code = NULL, completed_at = NOW()
-         WHERE user_id = $1 AND resume_id = $2 AND id = $3 AND status = 'processing'
+         WHERE a.user_id = $1 AND a.resume_id = $2 AND a.id = $3 AND a.status = 'processing'
+           AND EXISTS (SELECT 1 FROM careerprep.resume_profiles p
+             WHERE p.user_id = $1 AND p.resume_id = a.resume_id AND p.review_status = 'confirmed'
+               AND to_jsonb(p.profile_revision) = (a.source_snapshot -> 'profile_revision'))
          RETURNING id::text AS id, status, overall_score::text AS overall_score, summary,
                    strengths, weaknesses, missing_sections, recommendations, rubric_scores,
-                   rubric_version, model_provider, model_name, prompt_version, created_at, completed_at`,
+                   rubric_version, model_provider, model_name, prompt_version, created_at, completed_at,
+                   false AS is_stale`,
         [ownerUserId, resumeId, analysisId, result.overall_score, result.summary,
           JSON.stringify(result.strengths), JSON.stringify(result.weaknesses),
           JSON.stringify(result.missing_sections), JSON.stringify(result.recommendations),
@@ -430,11 +436,15 @@ export function createRepository(pool) {
         [ownerUserId, resumeId],
       );
       const result = await pool.query(
-        `SELECT id::text AS id, status, overall_score::text AS overall_score, summary,
-                strengths, weaknesses, missing_sections, recommendations, rubric_scores,
-                rubric_version, model_provider, model_name, prompt_version, created_at, completed_at
-         FROM careerprep.resume_analyses WHERE user_id = $1 AND resume_id = $2
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        `SELECT a.id::text AS id, a.status, a.overall_score::text AS overall_score, a.summary,
+                a.strengths, a.weaknesses, a.missing_sections, a.recommendations, a.rubric_scores,
+                a.rubric_version, a.model_provider, a.model_name, a.prompt_version, a.created_at, a.completed_at,
+                (to_jsonb(p.profile_revision) IS DISTINCT FROM (a.source_snapshot -> 'profile_revision')
+                  OR p.review_status IS DISTINCT FROM 'confirmed') AS is_stale
+         FROM careerprep.resume_analyses a
+         LEFT JOIN careerprep.resume_profiles p ON p.resume_id = a.resume_id AND p.user_id = a.user_id
+         WHERE a.user_id = $1 AND a.resume_id = $2
+         ORDER BY a.created_at DESC, a.id DESC LIMIT 1`,
         [ownerUserId, resumeId],
       );
       return result.rows[0] ? mapAnalysis(result.rows[0]) : null;

@@ -42,6 +42,7 @@ export type ResumeProfile = {
 export type ResumeAnalysis = {
   id: string;
   status: "processing" | "completed" | "failed";
+  is_stale: boolean;
   overall_score: number | null;
   summary: string | null;
   strengths: Array<{ text: string; evidence: string }>;
