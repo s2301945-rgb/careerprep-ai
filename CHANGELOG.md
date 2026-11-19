@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Clarify that aspirations and listed tools do not demonstrate proficiency or work experience in AI prompts, and add six labelled synthetic matching references with an explicit opt-in live evaluation command. Model accuracy remains subject to live verification.
+- Extend PostgreSQL integration coverage for cross-account private downloads, renames, deletion and library isolation without changing the owner's file, metadata or cleanup state.
+- Align the backend runtime declaration with CI on Node.js 22 and audit production dependencies in each CI job. Record the actual November 20 deployment recovery and remaining course/release gates.
+
 - Added private PDF and DOCX resume management with authenticated upload, listing, rename, download, and deletion.
 - Added text extraction, a draft profile users can edit and confirm, and saved AI analysis with cited evidence and rubric scores.
 - Added mocked backend tests, disposable PostgreSQL integration, and a live Groq evaluation with synthetic resumes.

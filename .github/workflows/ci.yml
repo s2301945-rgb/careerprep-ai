@@ -34,6 +34,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Audit production frontend dependencies
+        run: pnpm audit --prod --audit-level high
       - name: Lint
         run: pnpm lint
       - name: Test deployment smoke checks
@@ -80,6 +82,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - name: Install backend dependencies
         run: npm --prefix backend ci
+      - name: Audit production backend dependencies
+        run: npm --prefix backend audit --omit=dev --audit-level=high
       - name: Check backend syntax
         run: npm --prefix backend run check
       - name: Test API behavior
@@ -102,5 +106,7 @@ jobs:
           cache-dependency-path: CareerPrepAI/package-lock.json
       - name: Install Vite prototype dependencies
         run: npm --prefix CareerPrepAI ci
+      - name: Audit production prototype dependencies
+        run: npm --prefix CareerPrepAI audit --omit=dev --audit-level=high
       - name: Build Vite prototype
         run: npm --prefix CareerPrepAI run build

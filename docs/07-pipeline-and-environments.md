@@ -12,6 +12,8 @@ The [course instructions](00-official-course-instructions.md) require automated 
 | `API & PostgreSQL` | Frozen backend npm install, syntax check, API behavior tests, migrations/ownership/persistence tests against PostgreSQL 16 | Exercise actual request behavior and database constraints without credentials or paid AI calls. |
 | `Prototype Build` | Frozen npm install and build for the preserved Vite prototype | Keep the separate prototype buildable without delaying the independent jobs. |
 
+Each job also audits its production dependency graph and fails on high or critical advisories. These registry checks do not certify application security or cover every development dependency. The backend declares Node.js `22.x`, matching CI, instead of allowing Railpack to select Node.js 20, which is [end of life](https://nodejs.org/en/about/eol). Verify the selected runtime in the actual deployment build before claiming production alignment.
+
 The PostgreSQL service uses throwaway CI-only credentials. Its Supabase Auth/Storage fixture is test infrastructure; it never represents a real hosted login or Storage verification. Integration tests must use a fresh disposable database, never production.
 
 `Deployment Smoke` runs after a successful production deployment event or an explicit manual run. It checks that the deployed frontend was built with the expected API origin and that the API accepts browser requests from the frontend. It also verifies the database read, `/ready` and the signed-out resume API boundary. The chosen production frontend needs a build containing this check's origin marker and the intended `NEXT_PUBLIC_API_URL`. The workflow retries while hosts finish deploying. Run the two-user authenticated rehearsal separately to verify private uploads and live AI.
@@ -110,6 +112,10 @@ Sources: [main baseline](https://github.com/s2301945-rgb/careerprep-ai/actions/r
 | 4 | One recorded PR run, longest job 75 s (1.25 min), excluding queue time | Pending merge | 1/1 recorded run passed | Protected preview built, production pending | Pending merge | Pending | Pending | Persist `.next/cache` across eligible CI runs |
 
 Optimization hypothesis: separating independent jobs and cancelling obsolete runs improves feedback and avoids wasted work. The backend job adds meaningful coverage, so a runtime increase alone is not a regression. Record the new wall-clock/queue measurements before claiming an improvement; no before/after speedup has been established yet.
+
+### November 20 release-recheck sample
+
+For main `328c9f7`, [CI run 44580202191](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44580202191) passed all three jobs. GitHub job start/completion timestamps give frontend **24 s**, API/PostgreSQL **29 s**, and prototype **9 s**, excluding queue time. This is one observed run, not a four-sprint trend or an optimization comparison. Railway automatically deployed that main revision and its smoke passed. The frontend workflow initially failed at absent secrets and then an invalid copied token; after approved correction, [attempt 3](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44580304795/attempts/3) succeeded, including exact alias and smoke verification. That manual retry is recovery evidence, not the continuous Deployment Challenge. The [aggregate checkpoint](evidence/release-recheck-2026-11-20.json) records IDs, actual outcomes and remaining limits without credential values or personal document data.
 
 ### Week 4 cache measurement
 

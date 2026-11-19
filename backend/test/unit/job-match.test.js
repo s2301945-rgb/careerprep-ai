@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createJobMatcher, validateJobMatch } from "../../src/job-match.js";
+import { evaluateJobMatchCase } from "../../scripts/evaluate-job-match.js";
+
+const evaluationSet = JSON.parse(readFileSync(new URL("../fixtures/job-match-evaluation-set.json", import.meta.url), "utf8"));
+
+function referenceAssessments(sample) {
+  return sample.expectations.map((expectation) => ({
+    requirement: expectation.job_evidence,
+    job_evidence: expectation.job_evidence,
+    status: expectation.reference_status,
+    resume_evidence: expectation.resume_evidence,
+    explanation: "Synthetic reference assessment for this stated requirement.",
+  }));
+}
 
 const job = "Seeking JavaScript and SQL skills for an entry-level developer role.";
 const resume = "Built a JavaScript project. Studied databases with SQL.";
@@ -67,7 +81,78 @@ test("job matching sends a schema-constrained request and validates the provider
   assert.match(instructions, /requirement and explanation on one line without tabs/);
   assert.match(instructions, /character-for-character from job_text as one unbroken span/);
   assert.match(instructions, /resume_evidence copied character-for-character as one unbroken span from resume_text/);
-  assert.equal(result.prompt_version, "job-match-v3");
+  assert.match(instructions, /Mark met only when every stated part is supported/);
+  assert.match(instructions, /When aspirations are the only support, mark not_evidenced and use empty resume_evidence/);
+  assert.match(instructions, /For communication, teamwork, or documentation, cite an explicit activity/);
+  assert.match(instructions, /A skills list can support a requirement that simply names a tool or language/);
+  assert.match(instructions, /For proficiency, a listed tool without examples can be partial at most/);
+  assert.match(instructions, /For required experience duration or setting, a tool listing alone is not_evidenced/);
+  assert.equal(result.prompt_version, "job-match-v4");
+});
+
+test("synthetic job references distinguish aspirations, demonstrated work, and listed tools", () => {
+  assert.equal(evaluationSet.length, 6);
+  for (const sample of evaluationSet) {
+    const result = validateJobMatch({ requirements: referenceAssessments(sample) }, sample.job_text, sample.resume_text);
+    assert.deepEqual(evaluateJobMatchCase(sample, result), { passed: true, failures: [] }, sample.id);
+  }
+});
+
+test("semantic evaluation catches grounded aspiration and proficiency false positives", () => {
+  for (const [sample, quote] of [
+    [evaluationSet.find((item) => item.id === "aspiration-does-not-prove-communication"), "Seeking an opportunity to learn new tools and contribute to a successful team"],
+    [evaluationSet.find((item) => item.id === "listed-tool-does-not-prove-expertise"), "Skills: JavaScript, SQL"],
+  ]) {
+    const assessments = referenceAssessments(sample).map((assessment) => ({ ...assessment, status: "met", resume_evidence: quote }));
+    // Source grounding alone permits these quotes; the independently labelled cases
+    // must reject the unsupported conclusion without adding a runtime keyword veto.
+    const result = validateJobMatch({ requirements: assessments }, sample.job_text, sample.resume_text);
+    assert.equal(result.match_score, 100);
+    const assessment = evaluateJobMatchCase(sample, result);
+    assert.equal(assessment.passed, false, sample.id);
+    assert.ok(assessment.failures.some(({ issue }) => issue === "unexpected_status"));
+    assert.ok(assessment.failures.some(({ issue }) => issue === "score_outside_reference_range"));
+  }
+});
+
+test("semantic evaluation requires coverage even when the aggregate score appears correct", () => {
+  const sample = evaluationSet.find((item) => item.id === "aspiration-does-not-prove-communication");
+  const result = validateJobMatch({ requirements: [referenceAssessments(sample)[0]] }, sample.job_text, sample.resume_text);
+  assert.equal(result.match_score, 0);
+  assert.deepEqual(evaluateJobMatchCase(sample, result), {
+    passed: false, failures: [{ criterion: 2, issue: "missing_assessment" }],
+  });
+});
+
+test("semantic evaluation cannot reuse one assessment for separate teamwork and documentation criteria", () => {
+  const sample = evaluationSet.find((item) => item.id === "actual-teamwork-and-documentation");
+  const result = validateJobMatch({ requirements: [{
+    requirement: "Teamwork and documentation", job_evidence: sample.job_text,
+    status: "met", resume_evidence: "collaborated with three teammates",
+    explanation: "A combined assessment only quotes the teamwork activity.",
+  }] }, sample.job_text, sample.resume_text);
+  assert.equal(result.match_score, 100);
+  assert.deepEqual(evaluateJobMatchCase(sample, result), {
+    passed: false, failures: [{ criterion: 2, issue: "missing_assessment" }],
+  });
+});
+
+test("semantic evaluation reassigns overlapping spans to cover each criterion distinctly", () => {
+  const sample = {
+    expectations: [
+      { job_evidence: "JavaScript and SQL", allowed_statuses: ["met"] },
+      { job_evidence: "JavaScript", allowed_statuses: ["met"] },
+    ],
+    score_range: [100, 100],
+  };
+  const result = {
+    requirements: [
+      { job_evidence: "JavaScript", status: "met" },
+      { job_evidence: "SQL", status: "met" },
+    ],
+    match_score: 100,
+  };
+  assert.deepEqual(evaluateJobMatchCase(sample, result), { passed: true, failures: [] });
 });
 
 test("job matching keeps field limits and exact evidence when the request includes length guidance", async () => {

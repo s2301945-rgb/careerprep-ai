@@ -103,6 +103,7 @@ export function JobMatchPanel({ resumeId, onJobSaved }: { resumeId: string; onJo
       {match?.status === "completed" && <div className="job-match-result">
         <h4>{match.match_score === null ? "Insufficient information" : `Practice match: ${match.match_score}/100`}</h4>
         {match.is_stale && <p className="inline-message inline-error" role="status">This comparison used an older resume profile. Run it again for the current profile.</p>}
+        <p>A quote may not prove that a job requirement is met. Check each explanation against your actual skills and experience.</p>
         <p>{match.explanation}</p>
         {match.requirement_assessments.length === 0 ? <p>The job description did not contain usable requirements.</p> : <ul>{match.requirement_assessments.map((item, index) => <li key={index}><strong>{item.requirement}</strong> — {item.status.replaceAll("_", " ")}<small>Job: “{item.job_evidence}”</small>{item.resume_evidence && <small>Resume: “{item.resume_evidence}”</small>}<small>{item.explanation}</small></li>)}</ul>}
       </div>}

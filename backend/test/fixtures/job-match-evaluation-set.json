@@ -1,0 +1,59 @@
+[
+  {
+    "id": "aspiration-does-not-prove-communication",
+    "job_text": "Required: communicate implementation decisions and document project work.",
+    "resume_text": "Alex Sample. Objective: Seeking an opportunity to learn new tools and contribute to a successful team. Skills: JavaScript.",
+    "expectations": [
+      { "job_evidence": "communicate implementation decisions", "allowed_statuses": ["not_evidenced"], "reference_status": "not_evidenced", "resume_evidence": "" },
+      { "job_evidence": "document project work", "allowed_statuses": ["not_evidenced"], "reference_status": "not_evidenced", "resume_evidence": "" }
+    ],
+    "score_range": [0, 0]
+  },
+  {
+    "id": "actual-teamwork-and-documentation",
+    "job_text": "Required: collaborate with teammates and document implementation decisions.",
+    "resume_text": "Sam Example. In a classroom robotics project, collaborated with three teammates and wrote a setup guide explaining our implementation decisions.",
+    "expectations": [
+      { "job_evidence": "collaborate with teammates", "allowed_statuses": ["met"], "reference_status": "met", "resume_evidence": "collaborated with three teammates" },
+      { "job_evidence": "document implementation decisions", "allowed_statuses": ["met"], "reference_status": "met", "resume_evidence": "wrote a setup guide explaining our implementation decisions" }
+    ],
+    "score_range": [100, 100]
+  },
+  {
+    "id": "listed-tool-does-not-prove-expertise",
+    "job_text": "Required: expert proficiency in JavaScript.",
+    "resume_text": "Taylor Demo. Skills: JavaScript, SQL.",
+    "expectations": [
+      { "job_evidence": "expert proficiency in JavaScript", "allowed_statuses": ["partial", "not_evidenced"], "reference_status": "partial", "resume_evidence": "Skills: JavaScript, SQL" }
+    ],
+    "score_range": [0, 50]
+  },
+  {
+    "id": "listed-tool-supports-basic-tool-requirement",
+    "job_text": "Required: JavaScript.",
+    "resume_text": "Taylor Demo. Skills: JavaScript, SQL.",
+    "expectations": [
+      { "job_evidence": "JavaScript", "allowed_statuses": ["met"], "reference_status": "met", "resume_evidence": "JavaScript" }
+    ],
+    "score_range": [100, 100]
+  },
+  {
+    "id": "listed-tool-does-not-prove-commercial-duration",
+    "job_text": "Required: three years of commercial Python experience.",
+    "resume_text": "Jordan Fictional. Skills: Python. Completed a classroom sorting exercise.",
+    "expectations": [
+      { "job_evidence": "three years of commercial Python experience", "allowed_statuses": ["not_evidenced"], "reference_status": "not_evidenced", "resume_evidence": "" }
+    ],
+    "score_range": [0, 0]
+  },
+  {
+    "id": "mixed-listed-and-missing-tools",
+    "job_text": "Required: JavaScript and SQL.",
+    "resume_text": "Casey Placeholder. Skills: JavaScript.",
+    "expectations": [
+      { "job_evidence": "JavaScript", "allowed_statuses": ["met"], "reference_status": "met", "resume_evidence": "JavaScript" },
+      { "job_evidence": "SQL", "allowed_statuses": ["not_evidenced"], "reference_status": "not_evidenced", "resume_evidence": "" }
+    ],
+    "score_range": [50, 50]
+  }
+]

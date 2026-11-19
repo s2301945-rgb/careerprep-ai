@@ -158,7 +158,11 @@ test("analysis requests communicate response limits and handle an education-only
   assert.match(instructions, /skill name within 80 characters/);
   assert.match(instructions, /evidence must be non-empty exact source quotes/);
   assert.match(instructions, /except recommendation evidence for absent information/);
-  assert.equal(analysis.promptVersion, "resume-ai-v3");
+  assert.match(instructions, /Distinguish a listed skill from demonstrated proficiency/);
+  assert.match(instructions, /do not describe it as expertise, proficiency, commercial work, or years of experience without supporting activities or dates/);
+  assert.match(instructions, /aspirations, not completed achievements or proof of communication, teamwork, or documentation/);
+  assert.match(instructions, /recommend concrete examples instead of inventing them/);
+  assert.equal(analysis.promptVersion, "resume-ai-v4");
 });
 
 test("strict-schema analysis still rejects oversized or empty findings without changing valid low scores", async () => {

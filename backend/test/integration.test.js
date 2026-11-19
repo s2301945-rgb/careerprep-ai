@@ -85,7 +85,7 @@ function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
 
-async function upload(baseUrl, title = "Resume") {
+async function upload(baseUrl, title = "Resume", token = "user-a") {
   const form = new FormData();
   form.set("display_title", title);
   form.set("file", new Blob([
@@ -93,7 +93,7 @@ async function upload(baseUrl, title = "Resume") {
   ], { type: "application/pdf" }), `${title}.pdf`);
   return fetch(`${baseUrl}/api/v1/resumes`, {
     method: "POST",
-    headers: authHeaders("user-a"),
+    headers: authHeaders(token),
     body: form,
   });
 }
@@ -101,7 +101,7 @@ async function upload(baseUrl, title = "Resume") {
 test("PostgreSQL migrations and authenticated resume API enforce ownership and durable cleanup", {
   skip: !enabled,
   timeout: 120_000,
-}, async () => {
+}, async (t) => {
   await prepareAuthStandIns();
   await runMigrations(pool, { logger: { log() {} } });
   assert.equal(checksum("SELECT 1;\r\n"), checksum("SELECT 1;\n"));
@@ -263,6 +263,69 @@ test("PostgreSQL migrations and authenticated resume API enforce ownership and d
   assert.equal(savedProfile.profile_revision, 1);
   const userB = await repository.resolveUser(identities.b);
   assert.equal(await repository.getResumeProfile(userB.id, firstResume.id), null);
+  await t.test("two accounts cannot download, rename, delete, or list each other's private resumes", async () => {
+    const ownerMetadata = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}`, { headers: authHeaders("user-a") });
+    assert.equal(ownerMetadata.status, 200);
+    const metadataBefore = await ownerMetadata.json();
+    const ownerFile = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/file`, { headers: authHeaders("user-a") });
+    assert.equal(ownerFile.status, 200);
+    const bytesBefore = Buffer.from(await ownerFile.arrayBuffer());
+    const storagePath = (await repository.findResumeFile(userA.id, firstResume.id)).storage_path;
+    const cleanupBefore = await pool.query(
+      "SELECT id, status, attempt_count FROM careerprep.storage_cleanup_tasks WHERE resume_id = $1 ORDER BY id", [firstResume.id],
+    );
+
+    const emptyLibrary = await fetch(`${baseUrl}/api/v1/resumes`, { headers: authHeaders("user-b") });
+    assert.equal(emptyLibrary.status, 200);
+    assert.deepEqual(await emptyLibrary.json(), { resumes: [], next_cursor: null });
+    for (const [suffix, method, body] of [
+      ["/file", "GET"],
+      ["", "PATCH", JSON.stringify({ display_title: "Another account's edit" })],
+      ["", "DELETE"],
+    ]) {
+      const response = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}${suffix}`, {
+        method,
+        headers: { ...authHeaders("user-b"), ...(body ? { "Content-Type": "application/json" } : {}) },
+        ...(body ? { body } : {}),
+      });
+      assert.equal(response.status, 404, `${method} ${suffix || "resume"} must hide another owner's record`);
+      assert.equal((await response.json()).error.code, "RESUME_NOT_FOUND");
+    }
+    const unchangedMetadata = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}`, { headers: authHeaders("user-a") });
+    assert.equal(unchangedMetadata.status, 200);
+    assert.deepEqual(await unchangedMetadata.json(), metadataBefore);
+    const unchangedFile = await fetch(`${baseUrl}/api/v1/resumes/${firstResume.id}/file`, { headers: authHeaders("user-a") });
+    assert.equal(unchangedFile.status, 200);
+    assert.deepEqual(Buffer.from(await unchangedFile.arrayBuffer()), bytesBefore);
+    assert.deepEqual(storageObjects.get(storagePath), bytesBefore);
+    const cleanupAfter = await pool.query(
+      "SELECT id, status, attempt_count FROM careerprep.storage_cleanup_tasks WHERE resume_id = $1 ORDER BY id", [firstResume.id],
+    );
+    assert.deepEqual(cleanupAfter.rows, cleanupBefore.rows);
+
+    const otherUpload = await upload(baseUrl, "User B private CV", "user-b");
+    assert.equal(otherUpload.status, 201);
+    const otherResume = (await otherUpload.json()).resume;
+    assert.notEqual(otherResume.id, firstResume.id);
+    const [libraryAResponse, libraryBResponse] = await Promise.all([
+      fetch(`${baseUrl}/api/v1/resumes`, { headers: authHeaders("user-a") }),
+      fetch(`${baseUrl}/api/v1/resumes`, { headers: authHeaders("user-b") }),
+    ]);
+    assert.equal(libraryAResponse.status, 200);
+    assert.equal(libraryBResponse.status, 200);
+    const libraryA = await libraryAResponse.json();
+    const libraryB = await libraryBResponse.json();
+    assert.deepEqual(libraryA.resumes.map((resume) => resume.id).sort(), [firstResume.id, secondResume.id].sort());
+    assert.deepEqual(libraryB.resumes.map((resume) => resume.id), [otherResume.id]);
+    assert.equal(libraryA.next_cursor, null);
+    assert.equal(libraryB.next_cursor, null);
+    const ownFile = await fetch(`${baseUrl}/api/v1/resumes/${otherResume.id}/file`, { headers: authHeaders("user-b") });
+    assert.equal(ownFile.status, 200);
+    assert.deepEqual(Buffer.from(await ownFile.arrayBuffer()), bytesBefore);
+    const reverseAccess = await fetch(`${baseUrl}/api/v1/resumes/${otherResume.id}/file`, { headers: authHeaders("user-a") });
+    assert.equal(reverseAccess.status, 404);
+    assert.equal((await reverseAccess.json()).error.code, "RESUME_NOT_FOUND");
+  });
   assert.equal(await repository.createResumeAnalysisRun(userA.id, firstResume.id, { profile_revision: 1 }), null);
   const confirmedProfile = await repository.confirmResumeProfile(userA.id, firstResume.id, profileContent);
   assert.equal(confirmedProfile.review_status, "confirmed");
