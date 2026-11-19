@@ -10,7 +10,11 @@ const knownProviderTypes = new Set([
 ]);
 const operations = new Set(["resume_profile", "resume_analysis", "job_match"]);
 const validationFields = new Set([
-  "source_text", "response", "analysis", "summary", "rubric.clarity", "rubric.relevance", "rubric.evidence", "rubric.completeness",
+  "source_text", "response", "profile", "analysis", "summary", "rubric.clarity", "rubric.relevance", "rubric.evidence", "rubric.completeness",
+  "skills", "skills[].name", "skills[].evidence", "education", "education[].credential", "education[].institution", "education[].evidence",
+  "projects", "projects[].name", "projects[].description", "projects[].evidence",
+  "experience", "experience[].role", "experience[].organization", "experience[].highlights",
+  "experience[].highlights[].text", "experience[].highlights[].evidence",
   "strengths", "strengths[].text", "strengths[].evidence", "weaknesses", "weaknesses[].text", "weaknesses[].evidence",
   "missing_sections", "missing_sections[].section", "missing_sections[].reason",
   "recommendations", "recommendations[].text", "recommendations[].evidence",
