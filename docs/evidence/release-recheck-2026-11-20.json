@@ -1,0 +1,71 @@
+{
+  "dateAsiaManila": "2026-11-20",
+  "scope": "Verified deployment metadata, aggregate hosted checks, and local release follow-up; not a completion certificate",
+  "productionSourceCommit": "328c9f760e9c7176c366502ed58a9e41025a7f56",
+  "mainCi": {
+    "runId": 44580202191,
+    "url": "https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44580202191",
+    "result": "success",
+    "jobDurationSecondsExcludingQueue": { "frontend": 24, "apiAndPostgresql": 29, "prototype": 9 },
+    "measurementLimit": "One observed run; no general optimization or success-rate claim"
+  },
+  "observedMainRules": {
+    "source": "https://api.github.com/repos/s2301945-rgb/careerprep-ai/rules/branches/main",
+    "requiredApprovingReviews": 0,
+    "requiredStatusCheckRulePresent": false,
+    "forcePushAndDeletionProtectionPresent": true,
+    "currentContributorCanOpenRulesSettings": false
+  },
+  "railway": {
+    "deploymentId": "166fc749-2784-433e-8bc2-e725f6f725ef",
+    "trigger": "automatic main deployment",
+    "result": "SUCCESS",
+    "smokeRunId": 44580304288
+  },
+  "vercel": {
+    "acceptedUrl": "https://careerprep-ai-demo-221a.vercel.app",
+    "runId": 44580304795,
+    "attempt": 3,
+    "jobId": 135777309366,
+    "githubDeploymentId": 7921800366,
+    "deploymentUrl": "https://careerprep-ai-demo-221a-boio95swy-wazapzjavellana-2496.vercel.app",
+    "result": "success",
+    "verifiedSteps": ["deployment secret names present", "production settings validated", "build", "deploy", "exact project and alias verification", "production smoke"],
+    "previousFailures": ["missing deployment secrets", "token-format validation"],
+    "limitation": "Manually retried workflow; not a newly merged change through an observed automatic frontend deployment or the continuous Deployment Challenge"
+  },
+  "hostedAcceptance": {
+    "publicWiringCorsDatabaseAndSignedOutBoundary": "passed after frontend recovery",
+    "existingConfirmedSession": "passed",
+    "savedAnalysisAndComparisonLoaded": "passed",
+    "completedInterviewPresentInHistory": "passed",
+    "newAiGenerationOnRecoveredFrontend": "not repeated",
+    "analysisReliability": "One earlier successful retest and persisted read; previous intermittent failure cause unknown",
+    "semanticLimit": "A saved matching explanation overstates what its source quotation proves",
+    "fullDisposableCrudAndTwoAccountHostedRehearsal": "pending"
+  },
+  "preparedLocalFollowUp": {
+    "branch": "fix/release-finalization-2026-11-20",
+    "baseCommit": "328c9f760e9c7176c366502ed58a9e41025a7f56",
+    "backendUnitAndApiTests": { "passed": 78, "failed": 0, "skipped": 0, "nodeVersion": "22.23.5" },
+    "postgresqlIntegration": { "passed": 2, "failed": 0, "skipped": 0, "environment": "isolated local database with Auth/Storage stand-ins" },
+    "productionDependencyAudits": { "frontend": "0 known advisories", "backend": "0 known advisories", "prototype": "0 known advisories" },
+    "newJobMatchingReferences": 6,
+    "referenceCoverage": "Distinct criteria must be covered by distinct assessments; regression cases cover merged and overlapping quotes",
+    "frontendLintAndProductionBuild": "passed locally; new commit CI still required",
+    "visibleHelp": "Explain AI interpretation limits and that original PDF/DOCX revisions must be uploaded separately",
+    "liveV4AiEvaluation": "not run",
+    "runtimeChange": "Declare backend Node.js 22.x to align with CI; not yet deployed at this checkpoint",
+    "publication": "awaiting user approval"
+  },
+  "remainingGates": [
+    "owner-enforced approving review and three CI gates; rules settings unavailable to current contributor account",
+    "review and deploy local follow-up, then repeat affected live AI cases",
+    "controlled two-account full CRUD, invalid inputs and supported document formats on the final revision",
+    "SMTP setup or explicit demo-account limitation",
+    "continuous Deployment Challenge with genuine teammate review and automatic delivery",
+    "rollback rehearsal, actual sprint records and final presentation rehearsal",
+    "reviewed final tag and release with verified submission links"
+  ],
+  "privacy": "No credentials, private source documents, contact details, model responses or personal test scores are included"
+}

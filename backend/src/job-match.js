@@ -1,7 +1,7 @@
 import { ApiError } from "./errors.js";
 import { readProviderRejection, withAiDiagnostics } from "./ai-diagnostics.js";
 
-const PROMPT_VERSION = "job-match-v3";
+const PROMPT_VERSION = "job-match-v4";
 const RUBRIC_VERSION = "job-match-v1";
 const strictModels = new Set(["openai/gpt-oss-20b", "openai/gpt-oss-120b"]);
 const text = { type: "string" };
@@ -73,6 +73,9 @@ export function createJobMatcher({ apiKey, model, fetchImpl = fetch }) {
               "For each requirement, job_evidence must be copied character-for-character from job_text as one unbroken span that appears exactly as written there. Never join words from different parts of job_text, and never add or drop labels, punctuation or list items.",
               "If a list item such as 'Helpful: Git and Python' has two skills, make one requirement per skill and cite only that skill's own words, for example 'Git' or 'Python'.",
               "Mark met or partial only with resume_evidence copied character-for-character as one unbroken span from resume_text. Use an empty resume_evidence string for not_evidenced or unknown. Do not use protected attributes as criteria.",
+              "A source quote must support the specific requirement being assessed. Mark met only when every stated part is supported; use partial only when an identifiable part is supported and explain the missing part. A nearby keyword or unrelated project statement is insufficient.",
+              "Objectives, interests, willingness to learn, and statements about hoping to contribute describe aspirations. They do not demonstrate completed work, communication, teamwork, documentation, or other abilities. When aspirations are the only support, mark not_evidenced and use empty resume_evidence. For communication, teamwork, or documentation, cite an explicit activity such as presenting decisions, collaborating with teammates, or writing project instructions.",
+              "A skills list can support a requirement that simply names a tool or language. It does not establish proficiency, expertise, seniority, years of experience, or a commercial employment setting. For proficiency, a listed tool without examples can be partial at most. For required experience duration or setting, a tool listing alone is not_evidenced. Never infer those facts from an objective or from another skill.",
               "Keep requirement within 160 characters, job_evidence within 350 characters, resume_evidence within 400 characters, and explanation within 400 characters. Keep requirement and explanation on one line without tabs. The requirement, job_evidence, and explanation must contain non-whitespace text. Use non-empty resume_evidence for met or partial and an empty string otherwise. Select a shorter exact source quote when needed to fit these limits. Return an empty requirements array when no usable requirements are stated.",
               "Return JSON only: {\"requirements\":[{\"requirement\":string,\"job_evidence\":string,\"status\":\"met\"|\"partial\"|\"not_evidenced\"|\"unknown\",\"resume_evidence\":string,\"explanation\":string}]}",
             ].join(" ") },
