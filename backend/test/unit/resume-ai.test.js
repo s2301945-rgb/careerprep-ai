@@ -122,6 +122,74 @@ test("the default Groq model requests strict profile and analysis schemas and st
   assert.equal(formats[1].json_schema.schema.properties.rubric.properties.clarity.type, "integer");
 });
 
+test("analysis requests communicate response limits and handle an education-only profile", async () => {
+  const source = "Synthetic candidate. Bachelor of Information Technology, Example College. Skills: JavaScript.";
+  const profile = validateResumeProfile({
+    summary: "A student with JavaScript skills.",
+    skills: [{ name: "JavaScript", evidence: "JavaScript" }],
+    education: [{ credential: "Bachelor of Information Technology", institution: "Example College", evidence: "Bachelor of Information Technology, Example College" }],
+    projects: [], experience: [],
+  }, source);
+  const output = {
+    summary: "Education and skills are listed, with no project example supplied.",
+    strengths: [], weaknesses: [],
+    missing_sections: [{ section: "Projects", reason: "No project example appears in the source." }],
+    recommendations: [{ text: "Add a project example with a clear result.", evidence: "" }],
+    rubric: { clarity: 70, relevance: 70, evidence: 20, completeness: 40 },
+    skill_assessments: [{ name: "JavaScript", score: 40, evidence: "JavaScript" }],
+  };
+  let request;
+  const ai = createResumeAI({
+    apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async (_url, options) => {
+      request = JSON.parse(options.body);
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] }));
+    },
+  });
+  const analysis = await ai.analyze(source, profile);
+  assert.equal(analysis.result.overall_score, 50);
+  assert.deepEqual(analysis.result.recommendations, [{ text: output.recommendations[0].text }]);
+  const instructions = request.messages[0].content;
+  assert.match(instructions, /summary within 900 characters/);
+  assert.match(instructions, /at most 8 items in each of strengths, weaknesses, missing_sections, and recommendations/);
+  assert.match(instructions, /at most 30 skill_assessments/);
+  assert.match(instructions, /finding or recommendation text within 400 characters and each evidence quote within 400 characters/);
+  assert.match(instructions, /section within 100 characters and reason within 240 characters/);
+  assert.match(instructions, /skill name within 80 characters/);
+  assert.match(instructions, /evidence must be non-empty exact source quotes/);
+  assert.match(instructions, /except recommendation evidence for absent information/);
+  assert.equal(analysis.promptVersion, "resume-ai-v3");
+});
+
+test("strict-schema analysis still rejects oversized or empty findings without changing valid low scores", async () => {
+  const item = evaluationSet[0];
+  const source = `${item.resume_text}\n${"A".repeat(401)}`;
+  const profile = validateResumeProfile(profileFor(item), source);
+  const baseline = { ...analysisFor(item), rubric: { clarity: 8, relevance: 9, evidence: 8, completeness: 6 } };
+  const aiFor = (output) => createResumeAI({
+    apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] })),
+  });
+  const boundary = {
+    ...baseline, summary: "S".repeat(900),
+    strengths: Array.from({ length: 8 }, () => ({ text: "T".repeat(400), evidence: "A".repeat(400) })),
+  };
+  assert.equal((await aiFor(boundary).analyze(source, profile)).result.overall_score, 8);
+  const invalidOutputs = [
+    { ...baseline, summary: "S".repeat(901) },
+    { ...baseline, strengths: Array.from({ length: 9 }, () => baseline.strengths[0]) },
+    { ...baseline, strengths: [{ text: "T".repeat(401), evidence: item.expected_evidence }] },
+    { ...baseline, strengths: [{ text: "An overlong source quote.", evidence: "A".repeat(401) }] },
+    { ...baseline, weaknesses: [{ text: "Missing a project example.", evidence: "" }] },
+  ];
+  for (const output of invalidOutputs) {
+    await assert.rejects(aiFor(output).analyze(source, profile), { code: "AI_RESPONSE_INVALID" });
+  }
+  await assert.rejects(aiFor({
+    ...baseline, strengths: [{ text: "An invented finding.", evidence: "Absent from the synthetic source." }],
+  }).analyze(source, profile), { code: "AI_EVIDENCE_INVALID" });
+});
+
 test("provider errors and malformed JSON fail without returning a success-shaped result", async () => {
   const unavailable = createResumeAI({
     apiKey: "test-key", model: "test/model",
@@ -168,6 +236,19 @@ test("provider timeouts and interrupted response bodies return retryable AI erro
       })),
     });
     await assert.rejects(ai.extractProfile(resumeText), { status, code, retryable: true });
+  }
+});
+
+test("unreadable rejection bodies preserve the existing provider error classifications", async () => {
+  for (const [status, code, retryable] of [
+    [400, "AI_REQUEST_REJECTED", false], [401, "AI_PROVIDER_AUTH", false],
+    [429, "AI_PROVIDER_RATE_LIMITED", true], [500, "AI_PROVIDER_UNAVAILABLE", true],
+  ]) {
+    const ai = createResumeAI({
+      apiKey: "test-only", model: "openai/gpt-oss-20b",
+      fetchImpl: async () => new Response(new ReadableStream({ pull(controller) { controller.error(new Error("synthetic unreadable body")); } }), { status }),
+    });
+    await assert.rejects(ai.extractProfile(evaluationSet[0].resume_text), { code, retryable });
   }
 });
 

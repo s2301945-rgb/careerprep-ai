@@ -61,6 +61,36 @@ test("job matching sends a schema-constrained request and validates the provider
   assert.equal(result.match_score, 50);
   assert.equal(body.response_format.type, "json_schema");
   assert.equal(body.messages[1].content.includes(job), true);
+  const instructions = body.messages[0].content;
+  assert.match(instructions, /requirement within 160 characters, job_evidence within 350 characters, resume_evidence within 400 characters, and explanation within 400 characters/);
+  assert.match(instructions, /requirement, job_evidence, and explanation must contain non-whitespace text/);
+  assert.match(instructions, /requirement and explanation on one line without tabs/);
+  assert.match(instructions, /character-for-character from job_text as one unbroken span/);
+  assert.match(instructions, /resume_evidence copied character-for-character as one unbroken span from resume_text/);
+  assert.equal(result.prompt_version, "job-match-v3");
+});
+
+test("job matching keeps field limits and exact evidence when the request includes length guidance", async () => {
+  const sourceJob = `${job} ${"J".repeat(351)}`;
+  const sourceResume = `${resume} ${"R".repeat(401)}`;
+  const boundary = {
+    requirement: "A".repeat(160), job_evidence: "J".repeat(350),
+    status: "met", resume_evidence: "R".repeat(400), explanation: "E".repeat(400),
+  };
+  const matchFor = (assessment) => createJobMatcher({
+    apiKey: "test-only", model: "openai/gpt-oss-20b",
+    fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ requirements: [assessment] }) } }] })),
+  });
+  assert.equal((await matchFor(boundary)(sourceJob, sourceResume)).match_score, 100);
+  for (const [field, overlong] of [
+    ["requirement", "A".repeat(161)], ["job_evidence", "J".repeat(351)],
+    ["resume_evidence", "R".repeat(401)], ["explanation", "E".repeat(401)],
+  ]) {
+    await assert.rejects(matchFor({ ...boundary, [field]: overlong })(sourceJob, sourceResume), { code: "AI_RESPONSE_INVALID" });
+  }
+  await assert.rejects(matchFor({
+    ...requirements[0], job_evidence: "JavaScript and Python",
+  })("Required: JavaScript; helpful: Python.", resume), { code: "AI_EVIDENCE_INVALID" });
 });
 
 test("job matching reports a response-stream failure as retryable provider unavailability", async () => {

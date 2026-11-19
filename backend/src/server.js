@@ -22,6 +22,7 @@ import { extractResumeText, safeOriginalFilename, validateResumeFile } from "./d
 import { parseResumeMultipart } from "./multipart.js";
 import { readBoundedRequestBody } from "./request-body.js";
 import { ApiError, sendError } from "./errors.js";
+import { getAiDiagnostics } from "./ai-diagnostics.js";
 
 const JSON_BODY_LIMIT = 1024 * 1024;
 const MAX_BIGINT = 9223372036854775807n;
@@ -74,6 +75,10 @@ function respondError(request, response, requestId, error, corsHeaders, logger) 
       ? error.code
       : "UNCLASSIFIED";
     logger.error?.(JSON.stringify({ request_id: requestId, code: "INTERNAL_ERROR", dependency_code: safeCode }));
+  }
+  const diagnostic = getAiDiagnostics(error);
+  if (diagnostic) {
+    try { logger.error?.(JSON.stringify({ request_id: requestId, code: "AI_DIAGNOSTIC", ...diagnostic })); } catch {}
   }
   const retryAfter = error instanceof ApiError ? error.details?.retry_after_seconds : undefined;
   if (Number.isSafeInteger(retryAfter) && retryAfter > 0) {
