@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createResumeAI, validateResumeAnalysis, validateResumeProfile } from "../../src/resume-ai.js";
 import { getAiDiagnostics } from "../../src/ai-diagnostics.js";
+import { buildEvidenceCatalog } from "../../src/analysis-evidence.js";
 
 const evaluationSet = JSON.parse(readFileSync(new URL("../fixtures/resume-evaluation-set.json", import.meta.url), "utf8"));
 
@@ -29,8 +30,22 @@ function analysisFor(item) {
   };
 }
 
-function providerResponse(result) {
-  return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) } }] }));
+function analysisReferences(result, source) {
+  const catalog = buildEvidenceCatalog(source);
+  const normalized = (value) => value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  const output = structuredClone(result);
+  for (const field of ["strengths", "weaknesses", "recommendations", "skill_assessments"]) {
+    for (const item of output[field] ?? []) {
+      if (field === "recommendations" && item.evidence === undefined) item.evidence = "";
+      if (typeof item.evidence !== "string" || !item.evidence.trim()) continue;
+      item.evidence = catalog.find(({ text }) => normalized(text).includes(normalized(item.evidence)))?.id ?? item.evidence;
+    }
+  }
+  return output;
+}
+
+function providerResponse(result, source) {
+  return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(source ? analysisReferences(result, source) : result) } }] }));
 }
 
 test("Week 3 evaluation set keeps profile and assessment claims grounded", () => {
@@ -78,7 +93,7 @@ test("profile and analysis validators reject invented evidence and unknown skill
   }, item.resume_text, profile), { code: "AI_RESPONSE_INVALID" });
 });
 
-test("analysis source-quote diagnostics identify only the field and rule without exposing content or keys", async () => {
+test("analysis reference diagnostics identify only the field and rule without exposing content or keys", async () => {
   const item = evaluationSet[0];
   const privateSource = "PRIVATE_SYNTHETIC_SOURCE_SENTINEL_49281";
   const invalidQuote = "PRIVATE_SYNTHETIC_GENERATED_QUOTE_SENTINEL_49281";
@@ -94,15 +109,15 @@ test("analysis source-quote diagnostics identify only the field and rule without
     };
     const ai = createResumeAI({
       apiKey, model: "test/model",
-      fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(result) } }] })),
+      fetchImpl: async () => providerResponse(result, source),
     });
     await assert.rejects(ai.analyze(source, profile), (error) => {
       assert.equal(error.status, 502);
       assert.equal(error.code, "AI_EVIDENCE_INVALID");
-      assert.equal(error.message, "The resume analysis could not verify a claim against the document text.");
+      assert.equal(error.message, "The resume analysis could not verify an evidence reference.");
       const diagnostic = JSON.parse(JSON.stringify(getAiDiagnostics(error)));
       assert.deepEqual(diagnostic, {
-        operation: "resume_analysis", validation_field: `${field}[].evidence`, validation_rule: "source_quote",
+        operation: "resume_analysis", validation_field: `${field}[].evidence`, validation_rule: "source_reference",
       });
       assert.equal(Object.hasOwn(error, "validation_field"), false);
       const exposed = JSON.stringify({ error, diagnostic });
@@ -124,7 +139,7 @@ test("Groq profile and analysis calls are mocked, JSON-only, and schema validate
       const content = body.messages[0].content.startsWith("Extract")
         ? profileFor(item)
         : analysisFor(item);
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }), { status: 200 });
+      return providerResponse(body.messages[0].content.startsWith("Extract") ? content : analysisReferences(content, item.resume_text));
     },
   });
   const profile = await ai.extractProfile(item.resume_text);
@@ -234,7 +249,7 @@ test("the default Groq model requests strict profile and analysis schemas and st
       const content = formats.length === 1
         ? profileFor(item)
         : { ...analysisFor(item), strengths: [{ text: "Made up.", evidence: "This is not in the resume." }] };
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }));
+      return providerResponse(formats.length === 1 ? content : analysisReferences(content, item.resume_text));
     },
   });
   const { result: profile } = await ai.extractProfile(item.resume_text);
@@ -268,7 +283,7 @@ test("analysis requests communicate response limits and handle an education-only
     apiKey: "test-only", model: "openai/gpt-oss-20b",
     fetchImpl: async (_url, options) => {
       request = JSON.parse(options.body);
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] }));
+      return providerResponse(output, source);
     },
   });
   const analysis = await ai.analyze(source, profile);
@@ -278,21 +293,29 @@ test("analysis requests communicate response limits and handle an education-only
   assert.match(instructions, /summary within 900 characters/);
   assert.match(instructions, /at most 8 items in each of strengths, weaknesses, missing_sections, and recommendations/);
   assert.match(instructions, /at most 30 skill_assessments/);
-  assert.match(instructions, /finding or recommendation text within 400 characters and each evidence quote within 400 characters/);
+  assert.match(instructions, /finding or recommendation text within 400 characters/);
   assert.match(instructions, /section within 100 characters and reason within 240 characters/);
   assert.match(instructions, /skill name within 80 characters/);
-  assert.match(instructions, /evidence must be non-empty exact source quotes/);
+  assert.match(instructions, /evidence must be non-empty catalog ids/);
   assert.match(instructions, /except recommendation evidence for absent information/);
   assert.match(instructions, /Distinguish a listed skill from demonstrated proficiency/);
   assert.match(instructions, /do not describe it as expertise, proficiency, commercial work, or years of experience without supporting activities or dates/);
   assert.match(instructions, /aspirations, not completed achievements or proof of communication, teamwork, or documentation/);
   assert.match(instructions, /recommend concrete examples instead of inventing them/);
-  assert.equal(analysis.promptVersion, "resume-ai-v6");
+  assert.equal(analysis.promptVersion, "resume-ai-v7");
+  const input = JSON.parse(request.messages[1].content);
+  assert.equal(Object.hasOwn(input, "resume_text"), false);
+  assert.equal(input.evidence_catalog.map(({ text }) => text).join(""), source);
+  const referenceIds = input.evidence_catalog.filter(({ text }) => text.trim()).map(({ id }) => id);
+  for (const field of ["strengths", "weaknesses", "skill_assessments"]) {
+    assert.deepEqual(request.response_format.json_schema.schema.properties[field].items.properties.evidence.enum, referenceIds);
+  }
+  assert.deepEqual(request.response_format.json_schema.schema.properties.recommendations.items.properties.evidence.enum, ["", ...referenceIds]);
 });
 
 test("analysis makes one corrective request for a source quote and fully validates the correction", async () => {
   const item = evaluationSet[0];
-  const source = `${item.resume_text}\nPRIVATE_SOURCE_SENTINEL_31842`;
+  const source = `${item.resume_text}\n${" ".repeat(500)}\nPRIVATE_SOURCE_SENTINEL_31842`;
   const profile = validateResumeProfile(profileFor(item), source);
   const invalidQuote = "PRIVATE_GENERATED_QUOTE_SENTINEL_31842";
   const apiKey = "TEST_ONLY_RECOVERY_KEY_31842";
@@ -305,12 +328,12 @@ test("analysis makes one corrective request for a source quote and fully validat
       requests.push(JSON.parse(options.body));
       signals.push(options.signal);
       assert.equal(options.headers.Authorization, `Bearer ${apiKey}`);
-      return providerResponse(requests.length === 1 ? invalid : analysisFor(item));
+      return providerResponse(requests.length === 1 ? invalid : analysisFor(item), source);
     },
   });
   const analysis = await ai.analyze(source, profile);
   assert.equal(analysis.result.overall_score, 73);
-  assert.equal(analysis.promptVersion, "resume-ai-v6");
+  assert.equal(analysis.promptVersion, "resume-ai-v7");
   assert.equal(requests.length, 2);
   assert.equal(signals[0], signals[1]);
   assert.deepEqual(requests[1].response_format, requests[0].response_format);
@@ -319,9 +342,9 @@ test("analysis makes one corrective request for a source quote and fully validat
   }
   assert.deepEqual(requests[1].messages.slice(0, 2), requests[0].messages);
   assert.equal(requests[1].messages[2].role, "assistant");
-  assert.deepEqual(JSON.parse(requests[1].messages[2].content), invalid);
+  assert.deepEqual(JSON.parse(requests[1].messages[2].content), analysisReferences(invalid, source));
   const correction = JSON.parse(requests[1].messages[3].content);
-  assert.deepEqual(correction.validation_error, { field: "strengths[].evidence", rule: "source_quote" });
+  assert.deepEqual(correction.validation_error, { field: "strengths[].evidence", rule: "source_reference" });
   assert.equal(JSON.stringify(requests).includes(apiKey), false);
   for (const sentinel of [apiKey, invalidQuote, "PRIVATE_SOURCE_SENTINEL_31842"]) {
     assert.equal(JSON.stringify(analysis).includes(sentinel), false);
@@ -339,7 +362,7 @@ test("analysis stops after one invalid correction and rechecks non-evidence fiel
     let calls = 0;
     const ai = createResumeAI({
       apiKey: "test-only", model: "test/model",
-      fetchImpl: async () => providerResponse(++calls === 1 ? invalid : correction),
+      fetchImpl: async () => providerResponse(++calls === 1 ? invalid : correction, item.resume_text),
     });
     await assert.rejects(ai.analyze(item.resume_text, profile), { code });
     assert.equal(calls, 2);
@@ -352,7 +375,7 @@ test("valid analysis, profile extraction, and unrelated failures make only one p
   let validCalls = 0;
   const valid = createResumeAI({ apiKey: "test-only", model: "test/model", fetchImpl: async () => {
     validCalls += 1;
-    return providerResponse(analysisFor(item));
+    return providerResponse(analysisFor(item), item.resume_text);
   } });
   assert.equal((await valid.analyze(item.resume_text, profile)).result.overall_score, 73);
   assert.equal(validCalls, 1);
@@ -364,7 +387,7 @@ test("valid analysis, profile extraction, and unrelated failures make only one p
     [() => new Response("unavailable", { status: 500 }), "AI_PROVIDER_UNAVAILABLE"],
     [() => { throw new TypeError("synthetic connection error"); }, "AI_PROVIDER_UNAVAILABLE"],
     [() => new Response(JSON.stringify({ choices: [{ message: { content: "invalid JSON" } }] })), "AI_RESPONSE_INVALID"],
-    [() => providerResponse({ ...analysisFor(item), summary: "x".repeat(901) }), "AI_RESPONSE_INVALID"],
+    [() => providerResponse({ ...analysisFor(item), summary: "x".repeat(901) }, item.resume_text), "AI_RESPONSE_INVALID"],
     [() => providerResponse({ ...profileFor(item), skills: [{ name: item.expected_skill, evidence: "An absent profile source quote." }] }), "AI_EVIDENCE_INVALID", true],
   ];
   for (const [response, code, isProfile] of cases) {
@@ -392,7 +415,7 @@ test("corrective analysis shares its original 25-second deadline", async (t) => 
   const ai = createResumeAI({ apiKey: "test-only", model: "test/model", fetchImpl: async (_url, options) => {
     calls += 1;
     assert.equal(options.signal, controller.signal);
-    if (calls === 1) return providerResponse({ ...analysisFor(item), strengths: [{ text: "A finding.", evidence: "Absent source quote." }] });
+    if (calls === 1) return providerResponse({ ...analysisFor(item), strengths: [{ text: "A finding.", evidence: "Absent source quote." }] }, item.resume_text);
     controller.abort(new DOMException("Synthetic timeout", "TimeoutError"));
     options.signal.throwIfAborted();
   } });
@@ -410,7 +433,7 @@ test("analysis does not start a corrective provider request after its deadline e
   const ai = createResumeAI({ apiKey: "test-only", model: "test/model", fetchImpl: async () => {
     calls += 1;
     controller.abort(new DOMException("Synthetic timeout", "TimeoutError"));
-    return providerResponse({ ...analysisFor(item), strengths: [{ text: "A finding.", evidence: "Absent source quote." }] });
+    return providerResponse({ ...analysisFor(item), strengths: [{ text: "A finding.", evidence: "Absent source quote." }] }, item.resume_text);
   } });
   await assert.rejects(ai.analyze(item.resume_text, profile), { code: "AI_TIMEOUT", status: 504 });
   assert.equal(calls, 1);
@@ -418,12 +441,12 @@ test("analysis does not start a corrective provider request after its deadline e
 
 test("strict-schema analysis still rejects oversized or empty findings without changing valid low scores", async () => {
   const item = evaluationSet[0];
-  const source = `${item.resume_text}\n${"A".repeat(401)}`;
+  const source = `${"A".repeat(401)}\n${item.resume_text}`;
   const profile = validateResumeProfile(profileFor(item), source);
   const baseline = { ...analysisFor(item), rubric: { clarity: 8, relevance: 9, evidence: 8, completeness: 6 } };
   const aiFor = (output) => createResumeAI({
     apiKey: "test-only", model: "openai/gpt-oss-20b",
-    fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(output) } }] })),
+    fetchImpl: async () => providerResponse(output, source),
   });
   const boundary = {
     ...baseline, summary: "S".repeat(900),
@@ -434,11 +457,16 @@ test("strict-schema analysis still rejects oversized or empty findings without c
     { ...baseline, summary: "S".repeat(901) },
     { ...baseline, strengths: Array.from({ length: 9 }, () => baseline.strengths[0]) },
     { ...baseline, strengths: [{ text: "T".repeat(401), evidence: item.expected_evidence }] },
-    { ...baseline, strengths: [{ text: "An overlong source quote.", evidence: "A".repeat(401) }] },
-    { ...baseline, weaknesses: [{ text: "Missing a project example.", evidence: "" }] },
   ];
   for (const output of invalidOutputs) {
     await assert.rejects(aiFor(output).analyze(source, profile), { code: "AI_RESPONSE_INVALID" });
+  }
+  for (const output of [
+    { ...baseline, strengths: [{ text: "An overlong source quote.", evidence: "A".repeat(401) }] },
+    { ...baseline, weaknesses: [{ text: "Missing a project example.", evidence: "" }] },
+  ]) {
+    assert.throws(() => validateResumeAnalysis(output, source, profile), { code: "AI_RESPONSE_INVALID" });
+    await assert.rejects(aiFor(output).analyze(source, profile), { code: "AI_EVIDENCE_INVALID" });
   }
   await assert.rejects(aiFor({
     ...baseline, strengths: [{ text: "An invented finding.", evidence: "Absent from the synthetic source." }],
