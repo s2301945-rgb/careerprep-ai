@@ -2,24 +2,28 @@
 
 Prepared: October 22, 2026 (Asia/Manila).
 
+Final-defense requirements aligned November 20, 2026 (Asia/Manila). This is the capture date of the supplied final notice, not its publication date.
+
 These documents describe the project in the repository and the proposed endterm application. **Implemented** means visible in the inspected source. **Confirmed** means supplied by the project owner in the documentation interview. **Proposed** means a design to implement. **Open** means an answer is still needed. A migration describes a database design; its presence does not prove a feature works in the application or that the migration is deployed.
 
-The [official endterm project instructions](00-official-course-instructions.md) are included here as the course authority for requirements, process, grading, and final deliverables. The remaining documents describe CareerPrep AI's project-specific direction and plans.
+The [official endterm project instructions](00-official-course-instructions.md) provide the product and sprint requirements. The newer [Final Presentation and Project Defense instructions](00-final-defense-instructions.md) govern the final deadline, live demonstration and continuous Deployment Challenge where the notices differ. The [final-defense checklist](10-final-defense-checklist.md) tracks the remaining actions and evidence.
 
 ## Read these documents
 
 | Document | Purpose |
 | --- | --- |
 | [Official endterm project instructions](00-official-course-instructions.md) | Full course instruction set, including product acceptance criteria, sprint process, DevOps track, grading rubrics, and final deliverables. |
+| [Official final-defense instructions](00-final-defense-instructions.md) | Supplied notice captured November 20, including the November 27 freeze, live production walkthrough and continuous pre-recorded Deployment Challenge. |
 | [Project pitch](01-project-pitch.md) | Self-contained draft covering the six requested pitch sections and all seven development requirements. Use this as the source if the pitch submission needs a single PDF or Word document. |
 | [Technical design](02-technical-design.md) | Architecture, user journeys, API contracts, AI processing, scoring, errors, secrets, delivery plan, and acceptance criteria. |
 | [Database reference](03-database-reference.md) | Actual migration fields, relationships, constraints, access model, and proposed changes for Node.js and Supabase Auth. |
 | [Discovery session and decisions](04-discovery-and-decisions.md) | Confirmed answers, assumptions, unresolved questions, and the ongoing focused interview. |
-| [Backend delivery plan](05-backend-delivery-plan.md) | Proposed schedule through November 17, team handoffs, and a guided starting path for a backend engineer building experience. |
+| [Backend delivery plan](05-backend-delivery-plan.md) | Historical proposed schedule through November 17, team handoffs, and a guided starting path for a backend engineer building experience. The later official notice sets the final freeze. |
 | [Sprint delivery record](06-sprint-log.md) | Official Sprint 1–2 scope, tracked work, live starting evidence, and review/deployment acceptance gates. |
 | [Pipeline and environments](07-pipeline-and-environments.md) | Automated checks, hosting settings, environment separation, deploy/rollback runbook and measured pipeline baseline. |
 | [Workspace setup and API](08-setup-and-api.md) | Step-by-step configuration, operator migration/runtime-role setup, resume endpoints, validation and cleanup recovery. |
 | [Cloud setup from VS Code](09-cloud-setup.md) | Current service connections, replacement-project steps, CLI links and remaining deployment/account gates. |
+| [Final-defense checklist](10-final-defense-checklist.md) | Current presentation format, honest verification snapshot, continuous challenge requirements and remaining submission evidence with owners. |
 
 ## Confirmed direction
 
@@ -28,11 +32,12 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 - Backend: retain Node.js and adapt the original Laravel-oriented database/authentication design.
 - Authentication: use Supabase Auth, with the Node API validating identities and enforcing ownership.
 - Final scope: resume extraction/analysis, job-description matching, and mock interviews are all required. Build matching and interviews after resume analysis; they are not stretch goals. A user may still choose to practice without a job description.
-- Deadline: November 17, 2026, treated as the final development/demonstration deadline. Exact submission time and any separate preliminary-pitch deadline are not supplied.
+- Final freeze and submission deadline: **November 27, 2026 at 11:59 PM Philippine time**, confirmed by the newer final-defense notice. Earlier November 17 planning dates remain historical. The presentation schedule and group order are to be announced November 27.
 - Team: four people, covering frontend; DevOps; AI/ML plus backup backend; and primary backend. The AI/ML teammate can help with backend foundations and own AI integration. Individual availability and detailed deployment responsibilities remain open.
 - Personal risk: the backend engineer reports low confidence across backend tasks. The proposed mitigation is guided implementation in small working slices, with the backup backend teammate helping on authentication, data access, and initial CRUD.
 - AI: The original plan selected Google Gemini. The backend uses Groq after the deployed Gemini project rejected free-tier requests. Live synthetic extraction, resume analysis, job matching, and a complete five-answer interview passed in the November 19–20 hosted rehearsal; see the [dated acceptance record](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) for its limits.
-- Documentation format requested now: Markdown in this directory. The earlier pitch submission format was described as a single PDF or Word document; the official endterm instructions list final project deliverables separately.
+- Documentation is maintained as Markdown in this directory. The final notice says the technical-documentation format will be posted November 20; its contents have not been provided in this review. The earlier single PDF or Word requirement applied to the preliminary pitch.
+- Final presentation: 20 minutes of reporting, including a live production walkthrough, followed by 10 minutes of shared panel Q&A. Only the Deployment Challenge is pre-recorded, continuously and without edits, pauses or skipped waiting periods, with English narration by the designated DevOps Engineer.
 
 ## Repository evidence
 
@@ -49,12 +54,12 @@ The [official endterm project instructions](00-official-course-instructions.md) 
 
 ## Current readiness
 
-The Sprint 1–4 application is integrated into `main`, including [PR #38](https://github.com/s2301945-rgb/careerprep-ai/pull/38). The latest inspected Railway production deployment serves commit `9f96080`; all three main CI jobs and the production smoke check passed. The November 14 audit recorded all six Supabase migrations applied. Later signed-in hosted checks passed upload, rename, private download, extraction/profile confirmation, resume analysis, saved job matching, and a complete saved mock interview. See the [dated acceptance record](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) and its linked evidence.
+The Sprint 1–4 application is integrated into `main`, including [PR #38](https://github.com/s2301945-rgb/careerprep-ai/pull/38). The November 19–20 hosted rehearsal used Railway commit `9f96080`, with all three main CI jobs and production smoke passing. The November 14 audit recorded all six Supabase migrations applied. Signed-in hosted checks passed upload, rename, private download, extraction/profile confirmation, resume analysis, saved job matching and a complete saved mock interview. See the [dated acceptance record](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) and its linked evidence.
 
-The submitted frontend is [careerprep-ai-demo-221a.vercel.app](https://careerprep-ai-demo-221a.vercel.app), calling [the working Railway API](https://careerprep-ai-production-89bf.up.railway.app). Its inspected build predates the newest merged UI fixes. Updating that frontend, activating reliable deployment, current two-account acceptance, enforced review/check rules, a rollback rehearsal, actual course process evidence, and the tagged release remain open. Public signup email delivery is deferred while an existing confirmed account is used. The earlier Gemini and walking-skeleton findings remain dated history, not the current application status.
+The submitted frontend is [careerprep-ai-demo-221a.vercel.app](https://careerprep-ai-demo-221a.vercel.app), calling [the working Railway API](https://careerprep-ai-production-89bf.up.railway.app). The [November 20 update](06-sprint-log.md#frontend-production-update--november-20-2026-asiamanila) deployed tested frontend commit `3998f66` and verified the accepted alias, retained results and private download. PR #39 still needs genuine review and merge. Automatic frontend delivery, current complete two-account acceptance, enforced review/check rules, rollback, actual course evidence, and the tagged release remain open. Public signup email delivery is deferred while an existing confirmed account is used. Earlier Gemini and walking-skeleton findings remain dated history, not the current application status.
 
 The original design/discovery documents were prepared without invoking production endpoints, inspecting credentials, changing application code, applying migrations, or running automated application checks. Later implementation and verification are tracked separately in the sprint delivery record. The installed skill locations and project skill directories searched did not contain `grill-me`; the interview is recorded in [the decision log](04-discovery-and-decisions.md).
 
 ## Before submission
 
-Confirm the remaining delivery details: exact submission time, any separate pitch deadline, teammate availability, provider provisioning, parser/model choices, and scoring/retention policies. Review the proposed dated plan and update the pitch with further decisions, then export **01-project-pitch.md** as the one PDF or Word document required by the course. The technical design and database reference provide implementation detail beyond the preliminary pitch.
+Complete the [final-defense checklist](10-final-defense-checklist.md) before November 27 at 11:59 PM Philippine time. Verify the final tagged revision in production, finish the required documentation in the instructor's final format, and add accessible documentation, slide-deck and continuous Deployment Challenge links to the root README. The edited local demo videos remain practice material. Preserve actual process history, and identify missing records honestly.

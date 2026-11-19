@@ -71,4 +71,10 @@ The normal tests mock Groq. With a development key set on the backend, run `npm 
 
 ## Release status
 
-The signed-in demo workflow passed on the deployments recorded in the [sprint record](docs/06-sprint-log.md). The latest frontend fixes and deployment automation still need a verified production deployment. Public signup email delivery is deferred while an existing confirmed account is used. Current-run deletion and two-user isolation, enforced review and CI gates, rollback rehearsal, actual course process evidence, and the tagged release remain open in the [release checklist](CHANGELOG.md#release-checklist). See the [cloud setup guide](docs/09-cloud-setup.md) and [documentation index](docs/README.md) for the handoff.
+The signed-in demo workflow passed on the deployments recorded in the [sprint record](docs/06-sprint-log.md). The latest frontend fixes were deployed as `3998f66`; the accepted production alias, public build settings, retained results and private download were verified after deployment. This approved manual setup does not establish automatic frontend delivery. Public signup email delivery is deferred while an existing confirmed account is used. Current full CRUD and two-user acceptance, enforced review and CI gates, automatic deployment, rollback rehearsal, actual course process evidence, and the tagged release remain open in the [release checklist](CHANGELOG.md#release-checklist). See the [cloud setup guide](docs/09-cloud-setup.md) and [documentation index](docs/README.md) for the handoff.
+
+## Final defense
+
+The final code freeze and submission deadline is **November 27, 2026 at 11:59 PM Philippine time**. The official format is a 20-minute presentation with a live production walkthrough, followed by 10 minutes of Q&A. The Deployment Challenge must be recorded continuously with English narration by the designated DevOps Engineer, then linked here before freeze. Existing edited walkthroughs are rehearsal material. [Official final-defense instructions](docs/00-final-defense-instructions.md) · [Readiness checklist and submission evidence](docs/10-final-defense-checklist.md)
+
+The final tag, slide-deck link and continuous Deployment Challenge link are pending. Add their verified links here when the deliverables exist and confirm panel access.

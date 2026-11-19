@@ -1,6 +1,6 @@
 # Resume workspace setup and API
 
-This is the implemented resume workspace, resume AI, job matching, and text interview API contract on the current Week 4 feature branch. Deployment/test evidence belongs in the [sprint record](06-sprint-log.md).
+This guide describes the implemented resume workspace, resume AI, job matching, and text interview API contract. Deployment and test evidence belongs in the [sprint record](06-sprint-log.md).
 
 ## Local setup with an existing development Supabase project
 
@@ -105,7 +105,7 @@ Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authoriz
 | `GET /api/v1/resumes/:id/profile` | Owned decimal ID | 200, `{ "profile": ... }`; never returns the private extracted source text |
 | `PATCH /api/v1/resumes/:id/profile` | JSON `{ "summary", "skills", "education", "projects", "experience" }` | 200, `{ "profile": ... }`; validates structure/evidence and records user confirmation and profile revision |
 | `POST /api/v1/resumes/:id/analysis` | Owned resume with confirmed profile | 201, `{ "analysis": ... }`; validates provider output, computes the aggregate score in the backend and stores provenance and profile revision |
-| `GET /api/v1/resumes/:id/analysis` | Owned decimal ID | 200, `{ "analysis": ... }` for the latest saved attempt, including failed status when generation failed |
+| `GET /api/v1/resumes/:id/analysis` | Owned decimal ID | 200, `{ "analysis": ... }` for the latest saved attempt, including failed status when generation failed. `is_stale` flags a changed or unconfirmed profile, or an older result without a recorded profile revision. |
 | `GET /api/v1/jobs` | Verified token | 200, `{ "jobs": [...] }` with up to 50 owned saved jobs |
 | `POST /api/v1/jobs` | JSON `{ "job_title"?, "company_name"?, "description_text" }` | 201, `{ "job": ... }`; description is required, 1–30,000 characters |
 | `GET /api/v1/resumes/:id/jobs/:jobId/match` | Owned resume and job | 200, `{ "match": ... or null }` for latest attempt; `is_stale` flags a comparison made before the current profile revision |
@@ -117,7 +117,9 @@ Base URL: configured `NEXT_PUBLIC_API_URL`. Application routes require `Authoriz
 
 A resume representation contains `id`, `display_title`, `original_filename`, `mime_type`, `file_size_bytes`, `extraction_status`, nullable extraction failure/time, and creation/update timestamps. It never reveals a permanent public file URL, storage path, owner ID or credential. A new upload starts with `extraction_status: pending`; it does not call an LLM. Replacing a document means uploading a new resume; renaming changes only its title.
 
-The flow is explicit: extract document text and a draft profile, review and confirm the profile, then request analysis, matching, or an interview. PDF text uses Mozilla PDF.js; DOCX text is read from bounded document XML. Image-only/scanned PDFs are not supported and return an extraction error. Extracted text stays in the private database and is never returned to the browser. AI requests cap response sizes and provider time, reject malformed output, check factual evidence against normalized source text, and persist failure rather than fabricate a completed score. All AI feature requests share an in-memory budget on each API process: up to 12 starts per account and 30 starts total in a rolling minute, with one active request per account and four active requests total. Requests rejected by the guard return a retryable `429` or `503` with `Retry-After` and `retry_after_seconds`. They do not start a new AI run. These limits reset on process restart and do not coordinate across replicas. Use a shared limiter before scaling the API horizontally. Stale processing attempts are marked failed when their owner next reads them after two minutes. The default Groq model requests strict JSON schemas; backend validators still enforce evidence and score rules. The resume score averages four validated 0–100 dimensions. Matching uses equal-weight requirements with `met`=1, `partial`=0.5, and `not_evidenced`/`unknown`=0. Interview answer scores use the published weighted rubric, and a completed session averages all five evaluated answers. Tests mock Groq; live Groq verification of matching and interviews has not been performed. The existing `evaluate:resume-ai` command measures only the three synthetic resume-analysis fixtures.
+The flow is explicit: extract document text and a draft profile, review and confirm the profile, then request analysis, matching, or an interview. PDF text uses Mozilla PDF.js; DOCX text is read from bounded document XML. Image-only/scanned PDFs are not supported and return an extraction error. Extracted text stays in the private database and is never returned to the browser. AI requests cap response sizes and provider time, reject malformed output, check factual evidence against normalized source text, and persist failure rather than fabricate a completed score. All AI feature requests share an in-memory budget on each API process: up to 12 starts per account and 30 starts total in a rolling minute, with one active request per account and four active requests total. Requests rejected by the guard return a retryable `429` or `503` with `Retry-After` and `retry_after_seconds`. They do not start a new AI run. These limits reset on process restart and do not coordinate across replicas. Use a shared limiter before scaling the API horizontally. Stale processing attempts are marked failed when their owner next reads them after two minutes. The default Groq model requests strict JSON schemas; backend validators still enforce evidence and score rules. The resume score averages four validated 0–100 dimensions. Matching uses equal-weight requirements with `met`=1, `partial`=0.5, and `not_evidenced`/`unknown`=0. Interview answer scores use the published weighted rubric, and a completed session averages all five evaluated answers.
+
+The November 19–20, 2026 signed-in rehearsal passed real Groq extraction, analysis, job matching, and a complete five-answer interview, with results retained after reload. It used one existing confirmed account, Railway backend commit `9f96080`, and an older November 15 frontend build. Current-run deletion, two-user isolation, and forced AI failures were unexercised, and the latest frontend fixes still needed deployment. See the [dated hosted acceptance record](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) for the tested deployments and remaining gates. Routine tests mock Groq. The `evaluate:resume-ai` command checks expected skills and grounded achievement evidence for three synthetic resume fixtures. Numerical score calibration and separate job/interview evaluation sets remain unverified.
 
 Titles must contain 1–150 characters after trimming; blank/oversized/control-character titles and unknown write fields fail validation. Uploads accept one nonempty PDF/DOCX up to 10 MiB with matching filename, MIME and bounded document-container checks. Extraction rejects unreadable/empty text; OCR for image-only PDFs is unsupported.
 
@@ -151,5 +153,15 @@ npm --prefix backend test
 ```
 
 For database integration, use a separate **disposable local PostgreSQL database** and set `TEST_DATABASE_URL` and `TEST_DATABASE_DISPOSABLE=true` only in that test shell. Then run `npm --prefix backend run test:integration`. The suite creates/removes test schemas and therefore must never target development data you need or any hosted production database. CI provisions its own PostgreSQL service and supplies these test-only values automatically.
+
+### Mocked AI failure drill
+
+Run this focused unit drill from the repository root. Its injected `fetchImpl` supplies synthetic provider responses and stream errors using test-only credentials.
+
+```powershell
+node --test --test-name-pattern="provider errors|provider timeouts" backend/test/unit/resume-ai.test.js
+```
+
+The two selected tests exercise provider rate limiting, rejected credentials, a network failure, malformed model JSON, a request timeout, an aborted response body, and a disconnected response body. They assert the corresponding API error codes and retry behavior. This is automated unit evidence. Live-provider failure behavior and the deployed interface's recovery require their own recorded rehearsal.
 
 See [pipeline and environments](07-pipeline-and-environments.md) for hosting configuration, preview isolation, deployment checks, rollback and measured evidence. The separate `CareerPrepAI/` Vite prototype is preserved, not the production application entry point.

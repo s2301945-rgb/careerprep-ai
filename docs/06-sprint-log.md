@@ -90,6 +90,18 @@ At this inspection `Protect main` required a pull request but zero approving rev
 
 Full release acceptance remains open: deploy the current frontend, finish the two-account and remaining hosted checks, enforce the three CI checks and one real teammate review, record actual sprint/course evidence, rehearse rollback, and publish the annotated release only after verification. Public signup mail is deferred at the user's request while the confirmed demo account is used.
 
+## Frontend production update — November 20, 2026 (Asia/Manila)
+
+The user approved pushing `4b0a211` and `3998f66`, opening [PR #39](https://github.com/s2301945-rgb/careerprep-ai/pull/39), configuring the public Vercel settings and Node.js 22.x, and deploying the tested revision after CI passed. [CI run 44564774693](https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44564774693) passed `Install, Lint & Build`, `API & PostgreSQL`, and `Prototype Build` for `3998f66866b63503b9a9552a4d989b109a117255`.
+
+The clean Git source archive excluded ignored credentials, local dependencies and build output. Vercel built it successfully on Node.js 22.x as deployment `dpl_AkvTwSQizp3zLn8Vi14sZdFtZfEk`. The alias API independently verified that [the submitted website](https://careerprep-ai-demo-221a.vercel.app) resolves to this deployment in the intended project. Deployment metadata records the exact tested source SHA. The production page and its seven loaded scripts include the intended Railway API origin and the new signup-limit and stale-analysis messages. The production smoke passed API wiring, exact-origin CORS, database readiness and the signed-out API boundary.
+
+After reloading the deployed website with the existing confirmed session, the retained synthetic resume still had its renamed title, confirmed edited profile, analysis score 8/100, saved job match 40/100 and all five interview answers with the saved 80.91/100 aggregate. Private download again produced the original SHA-256. These checks establish persisted reads and private download after the frontend deployment. Creation, editing, deletion, new live AI generation, two-user isolation and forced failure cases were not repeated on this new frontend revision.
+
+The [deployment record](evidence/frontend-deployment-2026-11-20.json) and [post-deployment screenshot](evidence/frontend-deployment-2026-11-20.jpg) preserve the selected metadata and actual results. No private configuration values were downloaded for this setup; only the three previously verified public frontend settings were configured. No Railway runtime or database setting changed.
+
+This was an approved manual setup deployment, **not** the course's continuous Deployment Challenge or proof of automatic frontend delivery. At verification PR #39 was open with no submitted teammate approval; `main` remained `9f96080`. The frontend workflow still requires owner configuration, review, merge and a successful automatic run. The [new final-defense checklist](10-final-defense-checklist.md) records those gates, the remaining live acceptance, actual course evidence, rollback and final tagged release.
+
 ## Process and remaining evidence
 
 Exactly four project roles are confirmed: frontend, primary backend, AI/ML plus backup backend, and one dedicated DevOps engineer. Names, personal availability and credential owners remain open in the [decision log](04-discovery-and-decisions.md). Do not invent assignments or completed standups.

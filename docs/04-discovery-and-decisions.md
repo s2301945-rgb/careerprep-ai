@@ -1,5 +1,7 @@
 # CareerPrep AI discovery session and decision log
 
+> Later official deadline confirmed by the [final-defense notice](00-final-defense-instructions.md), captured November 20, is **November 27, 2026 at 11:59 PM Philippine time**. The earlier D-06 answer and November 17 planning window below remain historical decisions. The notice also replaces the earlier live deployment challenge with a continuous pre-recorded challenge. Follow the [current defense checklist](10-final-defense-checklist.md).
+
 Session started October 21, 2026 (Asia/Manila). Purpose: pressure-test the pitch against the course requirements and replace assumptions with explicit project decisions.
 
 The requested `@grill-me` skill was not found in the available skill catalog, installed local skill directories, or project skill files. A focused interview is being conducted directly in chat. No skill was installed and no claim is made that a dedicated skill session was invoked.

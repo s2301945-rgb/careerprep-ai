@@ -2,6 +2,8 @@
 
 The production backend runs on the `careerprep-ai` service in Railway's `capable-unity` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-89bf.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations; Storage and Groq credentials were still missing at that time. The [November 19–20 hosted rehearsal](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) subsequently passed private file operations and live AI workflows. The remaining frontend deployment and owner configuration are detailed below.
 
+The [November 20 setup deployment](06-sprint-log.md#frontend-production-update--november-20-2026-asiamanila) configured the three public Vercel Production settings, changed Node.js to 22.x and deployed tested commit `3998f66` to the submitted demo URL. Its accepted alias and retained application data were verified. Automatic frontend delivery and the final release gates still require owner/team action; the manual setup is not the recorded Deployment Challenge.
+
 ## 1. Open the project terminal
 
 In VS Code, open the `careerprep-ai` folder, choose **Terminal > New Terminal**, and check:

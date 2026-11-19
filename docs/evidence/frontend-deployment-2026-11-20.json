@@ -1,0 +1,56 @@
+{
+  "observedAtUtc": "2026-11-19T16:26:16.9131032Z",
+  "dateAsiaManila": "2026-11-20",
+  "scope": "Approved manual frontend setup deployment and scoped post-deployment verification; not the automated course Deployment Challenge or full release acceptance.",
+  "sourceCommit": "3998f66866b63503b9a9552a4d989b109a117255",
+  "sourceBranch": "fix/release-completion-2026-11-19",
+  "pullRequest": "https://github.com/s2301945-rgb/careerprep-ai/pull/39",
+  "pullRequestStateAtVerification": "open; no submitted teammate approval; not merged",
+  "ci": {
+    "url": "https://github.com/s2301945-rgb/careerprep-ai/actions/runs/44564774693",
+    "result": "success",
+    "jobs": ["Install, Lint & Build", "API & PostgreSQL", "Prototype Build"]
+  },
+  "frontend": {
+    "project": "wazapzjavellana-2496/careerprep-ai-demo-221a",
+    "projectId": "prj_ST3K2ppxXVUwD1LDUu7EAl456Kra",
+    "deploymentId": "dpl_AkvTwSQizp3zLn8Vi14sZdFtZfEk",
+    "deploymentUrl": "https://careerprep-ai-demo-221a-lmkn30w1w-wazapzjavellana-2496.vercel.app",
+    "productionUrl": "https://careerprep-ai-demo-221a.vercel.app",
+    "inspectorUrl": "https://vercel.com/wazapzjavellana-2496/careerprep-ai-demo-221a/AkvTwSQizp3zLn8Vi14sZdFtZfEk",
+    "readyState": "READY",
+    "nodeVersion": "22.x",
+    "nodeEvidence": "Approved project update succeeded and the remote build log reported Node.js changed from 26.x to 22.x.",
+    "aliasApiVerifiedProjectAndDeployment": true,
+    "deploymentMetadataVerifiedSourceCommit": true,
+    "publicVariableNamesConfigured": ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"],
+    "cleanSourceArchive": "Git archive; ignored credentials, dependencies and build output excluded"
+  },
+  "backend": {
+    "url": "https://careerprep-ai-production-89bf.up.railway.app",
+    "sourceCommit": "9f9608043f042e713a48890cf8897030a0b3755a",
+    "deploymentId": "0377a9da-f4f0-4f83-be11-78d3e353c2ed",
+    "runtimeOrDatabaseSettingsChanged": false
+  },
+  "postDeploymentChecks": {
+    "publicSmoke": "passed: frontend API origin, exact-origin CORS, database readiness, signed-out API boundary",
+    "publicScriptsChecked": 7,
+    "newSignupLimitMessagePresent": true,
+    "newSavedAnalysisStalenessMessagePresent": true,
+    "existingConfirmedSessionLoadsWorkspace": true,
+    "retainedSyntheticResume": "Release acceptance synthetic resume — verified 19 Nov",
+    "renamedTitleAndEditedConfirmedProfilePersisted": true,
+    "savedAnalysisScore": 8,
+    "savedJobMatchScore": 40,
+    "savedCompletedInterviewScore": 80.91,
+    "allFiveAnswersAndFeedbackPersisted": true,
+    "authenticatedDownloadMatchesOriginal": true,
+    "downloadSha256": "93d0ff24dd4c44d8e3f7beee4458aec150a88fa8f5d6af88af1e393c0af16132",
+    "screenshot": "frontend-deployment-2026-11-20.jpg",
+    "prScreenshot": "release-pr-39-2026-11-20.jpg"
+  },
+  "notRepeatedOnNewFrontend": ["create/update/delete lifecycle", "DOCX", "new live AI generation", "two-user isolation", "expired authentication", "forced provider/storage failures", "invalid uploads"],
+  "remainingReleaseGates": ["real teammate review and approved merge", "required CI checks and approving review enforced in Protect main", "owner configuration and a successful automatic frontend deployment", "remaining current hosted acceptance", "rollback rehearsal", "actual course deliverables", "final annotated release tag"],
+  "recording": "This manual setup deployment does not satisfy the continuous automated Deployment Challenge.",
+  "redaction": "No credentials, private variable values, personal resume contents, account identifiers or storage object paths are included."
+}

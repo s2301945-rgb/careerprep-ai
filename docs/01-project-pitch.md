@@ -2,6 +2,8 @@
 
 Preliminary endterm project pitch | October 21, 2026
 
+> Historical planning document. The later [final-defense notice](00-final-defense-instructions.md), captured November 20, sets the final freeze and submission deadline to **November 27, 2026 at 11:59 PM Philippine time**. Earlier November 17 targets and proposed implementation status below are preserved as the original plan. Use the [defense checklist](10-final-defense-checklist.md) and dated sprint evidence for current preparation.
+
 **Document status:** Our team proposes CareerPrep AI using Node.js and Supabase Auth, with resume analysis, job matching, and mock interviews in the final scope. Our deadline is November 17, 2026. Our four-person team consists of a frontend engineer, a DevOps engineer, an AI/ML engineer who also provides backup backend support, and a primary backend engineer. Features below describe our intended endterm application unless explicitly identified as implemented. We still need to confirm the exact submission time, any separate pitch deadline, and detailed working availability.
 
 ## 1. Project summary
