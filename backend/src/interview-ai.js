@@ -20,13 +20,13 @@ export function validateInterviewQuestions(output, count, resumeText, jobText = 
   if (!Array.isArray(output?.questions) || output.questions.length !== count) {
     throw new ApiError(502, "AI_RESPONSE_INVALID", "The interview AI returned the wrong number of questions.");
   }
-  const source = normalized(`${resumeText} ${jobText}`);
+  const sources = [normalized(resumeText), normalized(jobText)];
   const seen = new Set();
   return output.questions.map((item, index) => {
     const question_text = valueText(item?.question_text, 500);
     const context_quote = valueText(item?.context_quote, 300, true);
     if (item?.question_number !== index + 1 || !["general", "technical", "behavioral", "situational"].includes(item?.question_type) ||
-        seen.has(normalized(question_text)) || (context_quote && !source.includes(normalized(context_quote)))) {
+        seen.has(normalized(question_text)) || (context_quote && !sources.some((source) => source.includes(normalized(context_quote))))) {
       throw new ApiError(502, "AI_EVIDENCE_INVALID", "The interview questions could not be verified against the supplied context.");
     }
     seen.add(normalized(question_text));

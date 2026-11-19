@@ -89,20 +89,30 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
   const [uploadError, setUploadError] = useState("");
   const [uploadNotice, setUploadNotice] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
+  const libraryRequest = useRef(0);
 
   const loadPage = useCallback(async (cursor?: string | null, append = false) => {
+    const request = ++libraryRequest.current;
     if (append) setLoadingMore(true);
-    else setLoading(true);
+    else {
+      setLoading(true);
+      setLoadingMore(false);
+    }
     setLoadError("");
     try {
       const result = await listResumes(cursor);
+      if (request !== libraryRequest.current) return;
       setResumes((current) => append ? [...current, ...result.resumes] : result.resumes);
       setNextCursor(result.next_cursor);
     } catch (reason) {
-      setLoadError(reason instanceof Error ? reason.message : "Your resumes could not be loaded.");
+      if (request === libraryRequest.current) {
+        setLoadError(reason instanceof Error ? reason.message : "Your resumes could not be loaded.");
+      }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (request === libraryRequest.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
 
@@ -114,7 +124,10 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
     }).catch((reason: unknown) => {
       setProfileError(reason instanceof Error ? reason.message : "Your account details could not be loaded.");
     });
-    return () => window.clearTimeout(initialLoad);
+    return () => {
+      window.clearTimeout(initialLoad);
+      libraryRequest.current += 1;
+    };
   }, [loadPage]);
 
   const filteredResumes = useMemo(() => {
