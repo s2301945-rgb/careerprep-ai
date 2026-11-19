@@ -38,6 +38,8 @@ const state = {
   extractedTexts: new Map(),
   profiles: new Map(),
   analyses: new Map(),
+  analysisRevisions: new Map(),
+  beforeAnalyze: null,
   removeFailures: 0,
   lastDownloadPath: null,
   lastUploadPath: null,
@@ -150,15 +152,23 @@ const repository = {
   async confirmResumeProfile(userId, resumeId, content) {
     const profile = await this.getResumeProfile(userId, resumeId);
     if (!profile) return null;
+    const changed = ["summary", "skills", "education", "projects", "experience"]
+      .some((field) => JSON.stringify(profile[field]) !== JSON.stringify(content[field]));
+    if (changed) profile.profile_revision += 1;
     Object.assign(profile, content, { review_status: "confirmed", confirmed_at: "2026-11-07T00:00:00.000Z" });
     return profile;
   },
-  async createResumeAnalysisRun(userId, resumeId) {
+  async createResumeAnalysisRun(userId, resumeId, snapshot) {
+    const profile = await this.getResumeProfile(userId, resumeId);
+    if (profile?.review_status !== "confirmed" || profile.profile_revision !== snapshot.profile_revision) return null;
     const id = "9001";
     state.analyses.set(resumeId, { id, status: "processing" });
+    state.analysisRevisions.set(resumeId, snapshot.profile_revision);
     return id;
   },
   async completeResumeAnalysis(userId, resumeId, id, input) {
+    const profile = await this.getResumeProfile(userId, resumeId);
+    if (profile?.review_status !== "confirmed" || profile.profile_revision !== state.analysisRevisions.get(resumeId)) return null;
     const analysis = {
       id,
       status: "completed",
@@ -167,6 +177,7 @@ const repository = {
       model_provider: input.provider,
       model_name: input.model,
       prompt_version: input.promptVersion,
+      is_stale: false,
       created_at: "2026-11-07T00:00:00.000Z",
       completed_at: "2026-11-07T00:00:01.000Z",
     };
@@ -179,7 +190,13 @@ const repository = {
   },
   async getLatestResumeAnalysis(userId, resumeId) {
     const resume = state.resumes.get(resumeId);
-    return resume?.ownerUserId === userId ? state.analyses.get(resumeId) ?? null : null;
+    const analysis = state.analyses.get(resumeId);
+    if (resume?.ownerUserId !== userId || !analysis) return null;
+    const profile = state.profiles.get(resumeId);
+    return {
+      ...analysis,
+      is_stale: profile?.review_status !== "confirmed" || profile.profile_revision !== state.analysisRevisions.get(resumeId),
+    };
   },
   async armUploadCleanup(userId, storagePath) {
     return { id: `upload:${storagePath}`, owner_user_id: userId, storage_path: storagePath, status: "armed" };
@@ -298,6 +315,7 @@ before(async () => {
         };
       },
       async analyze() {
+        await state.beforeAnalyze?.();
         return {
           result: {
             summary: "The resume has one measurable project outcome.",
@@ -326,6 +344,8 @@ beforeEach(() => {
   state.extractedTexts.clear();
   state.profiles.clear();
   state.analyses.clear();
+  state.analysisRevisions.clear();
+  state.beforeAnalyze = null;
   state.removeFailures = 0;
   state.lastDownloadPath = null;
   state.lastUploadPath = null;
@@ -389,6 +409,8 @@ test("resume profile extraction, explicit confirmation and saved analysis are au
   assert.equal(analysis.status, "completed");
   assert.equal(analysis.overall_score, 70);
   assert.equal(analysis.model_provider, "groq");
+  assert.equal(analysis.is_stale, false);
+  assert.equal(Object.hasOwn(analysis, "source_snapshot"), false);
 
   const otherUser = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/profile`, { headers: authHeader("tokenB") });
   assert.equal(otherUser.status, 404);
@@ -406,6 +428,41 @@ test("resume profile extraction, explicit confirmation and saved analysis are au
   assert.equal(error.retryable, true);
   assert.equal(state.lastDownloadPath, null);
   assert.equal(state.profiles.get(resumeId).review_status, "confirmed");
+
+  const updated = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/profile`, {
+    method: "PATCH", headers: { ...authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ summary: "A revised application project profile.", skills: profile.skills, education: profile.education, projects: profile.projects, experience: profile.experience }),
+  });
+  assert.equal(updated.status, 200);
+  const staleResponse = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { headers: authHeader() });
+  const staleAnalysis = (await staleResponse.json()).analysis;
+  assert.equal(staleAnalysis.status, "completed");
+  assert.equal(staleAnalysis.is_stale, true);
+});
+
+test("resume analysis reports a concurrent profile edit instead of saving an outdated result", async () => {
+  const uploaded = await uploadResume(baseUrl, { filename: "Jamie.pdf", buffer: textPdf(AI_RESUME_TEXT) });
+  const resumeId = (await uploaded.json()).resume.id;
+  const extracted = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/extract`, { method: "POST", headers: authHeader() });
+  const profile = (await extracted.json()).profile;
+  const content = { summary: profile.summary, skills: profile.skills, education: profile.education, projects: profile.projects, experience: profile.experience };
+  await repository.confirmResumeProfile("7001", resumeId, content);
+  state.beforeAnalyze = async () => {
+    const edited = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/profile`, {
+      method: "PATCH", headers: { ...authHeader(), "Content-Type": "application/json" },
+      body: JSON.stringify({ ...content, summary: "A profile changed while analysis was in progress." }),
+    });
+    assert.equal(edited.status, 200);
+  };
+
+  const response = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { method: "POST", headers: authHeader() });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error.code, "ANALYSIS_STATE_CHANGED");
+  const latestResponse = await fetch(`${baseUrl}/api/v1/resumes/${resumeId}/analysis`, { headers: authHeader() });
+  const latest = (await latestResponse.json()).analysis;
+  assert.equal(latest.status, "failed");
+  assert.equal(latest.is_stale, true);
+  assert.equal(Object.hasOwn(latest, "source_snapshot"), false);
 });
 
 test("resume AI limits concurrent work and aggregate starts, then recovers as slots and time windows expire", () => {

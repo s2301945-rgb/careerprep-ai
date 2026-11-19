@@ -25,6 +25,32 @@ test("job matching rejects invented evidence, repeated requirements, and unsuppo
   assert.throws(() => validateJobMatch({ requirements: [{ ...requirements[0], status: "met", resume_evidence: "" }] }, job, resume));
 });
 
+test("job evidence accepts normal document whitespace while rejecting other controls", () => {
+  const multilineJob = "Required skills:\r\nJavaScript and\tSQL";
+  const multilineResume = "Projects:\nJavaScript and\tSQL tracker";
+  const assessment = {
+    ...requirements[0], job_evidence: multilineJob, resume_evidence: multilineResume,
+  };
+  const result = validateJobMatch({ requirements: [assessment] }, multilineJob, multilineResume);
+  assert.equal(result.requirements[0].job_evidence, multilineJob);
+  assert.equal(result.requirements[0].resume_evidence, multilineResume);
+  assert.equal(result.match_score, 100);
+
+  for (const field of ["job_evidence", "resume_evidence"]) {
+    for (const control of ["\u0000", "\u000b", "\u007f"]) {
+      assert.throws(() => validateJobMatch({ requirements: [{ ...assessment, [field]: `JavaScript${control}` }] }, multilineJob, multilineResume), {
+        code: "AI_RESPONSE_INVALID",
+      });
+    }
+  }
+  assert.throws(() => validateJobMatch({ requirements: [{ ...assessment, requirement: "JavaScript\nSQL" }] }, multilineJob, multilineResume), {
+    code: "AI_RESPONSE_INVALID",
+  });
+  assert.throws(() => validateJobMatch({ requirements: [{ ...assessment, job_evidence: "TypeScript\nSQL" }] }, multilineJob, multilineResume), {
+    code: "AI_EVIDENCE_INVALID",
+  });
+});
+
 test("job matching sends a schema-constrained request and validates the provider response", async () => {
   let body;
   const match = createJobMatcher({ apiKey: "test-only", model: "openai/gpt-oss-20b", fetchImpl: async (_url, options) => {

@@ -290,10 +290,10 @@ export function ResumeWorkspace({ email, onSignOut, sessionNotice = "" }: Resume
             </div>
             <form className="upload-form" onSubmit={handleUpload}>
               <label className="field-label" htmlFor="display-title">Display title <span className="optional-label">Optional</span></label>
-              <input id="display-title" maxLength={150} name="display_title" placeholder="e.g. Product Designer Resume" type="text" />
+              <input disabled={uploading} id="display-title" maxLength={150} name="display_title" placeholder="e.g. Product Designer Resume" type="text" />
               <label className="field-label file-label" htmlFor="resume-file">Resume file</label>
               <div className="file-picker">
-                <input accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="resume-file-help" id="resume-file" name="file" onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? "")} required type="file" />
+                <input accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="resume-file-help" disabled={uploading} id="resume-file" name="file" onChange={(event) => setSelectedFileName(event.target.files?.[0]?.name ?? "")} required type="file" />
                 <span className="file-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg></span>
                 <span className="file-picker-copy"><strong title={selectedFileName || undefined}>{selectedFileName || "Choose a file"}</strong><span>{selectedFileName ? "Ready to upload" : "Browse your device"}</span></span>
                 <span className="file-picker-hint" id="resume-file-help">PDF or DOCX<br />Up to 10 MiB</span>
@@ -548,7 +548,7 @@ function ResumeDetailDialog({ id, onClose, onDeleted, onUpdated }: { id: string;
 
             <form className="rename-form" onSubmit={saveTitle}>
               <label className="field-label" htmlFor="rename-title">Display title</label>
-              <div className="rename-control"><input id="rename-title" maxLength={150} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="button button-secondary" disabled={saving || deleting || title.trim() === resume.display_title} type="submit">{saving ? <><Spinner dark /> Saving…</> : "Save title"}</button></div>
+              <div className="rename-control"><input disabled={saving || deleting} id="rename-title" maxLength={150} onChange={(event) => setTitle(event.target.value)} value={title} /><button className="button button-secondary" disabled={saving || deleting || title.trim() === resume.display_title} type="submit">{saving ? <><Spinner dark /> Saving…</> : "Save title"}</button></div>
             </form>
 
             <section className="extraction-info" aria-labelledby="extraction-title">
@@ -620,6 +620,7 @@ function AnalysisResult({ analysis }: { analysis: ResumeAnalysis }) {
   return (
     <section className="analysis-result" aria-labelledby="analysis-result-title">
       <div className="analysis-result-heading"><div><span className="eyebrow">SAVED AI ANALYSIS</span><h3 id="analysis-result-title">Resume score</h3></div><strong className="analysis-score">{analysis.overall_score}<small>/100</small></strong></div>
+      {analysis.is_stale && <p className="notice notice-warning" role="status">This saved score may not reflect your current resume profile. Review and confirm your profile, then run analysis again.</p>}
       <p>{analysis.summary}</p>
       <div className="analysis-rubric" aria-label="Resume score by rubric category">{rubric.map(([label, score]) => <div key={label}><span>{label}</span><strong>{score}</strong></div>)}</div>
       {analysis.strengths.length > 0 && <div className="ai-profile-section"><strong>Strengths</strong><ul>{analysis.strengths.map((item, index) => <li key={index}><span>{item.text}</span><small>“{item.evidence}”</small></li>)}</ul></div>}
