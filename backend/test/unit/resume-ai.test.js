@@ -302,7 +302,7 @@ test("analysis requests communicate response limits and handle an education-only
   assert.match(instructions, /do not describe it as expertise, proficiency, commercial work, or years of experience without supporting activities or dates/);
   assert.match(instructions, /aspirations, not completed achievements or proof of communication, teamwork, or documentation/);
   assert.match(instructions, /recommend concrete examples instead of inventing them/);
-  assert.equal(analysis.promptVersion, "resume-ai-v7");
+  assert.equal(analysis.promptVersion, "resume-ai-v8");
   const input = JSON.parse(request.messages[1].content);
   assert.equal(Object.hasOwn(input, "resume_text"), false);
   assert.equal(input.evidence_catalog.map(({ text }) => text).join(""), source);
@@ -333,7 +333,7 @@ test("analysis makes one corrective request for a source quote and fully validat
   });
   const analysis = await ai.analyze(source, profile);
   assert.equal(analysis.result.overall_score, 73);
-  assert.equal(analysis.promptVersion, "resume-ai-v7");
+  assert.equal(analysis.promptVersion, "resume-ai-v8");
   assert.equal(requests.length, 2);
   assert.equal(signals[0], signals[1]);
   assert.deepEqual(requests[1].response_format, requests[0].response_format);

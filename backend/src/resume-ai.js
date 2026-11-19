@@ -5,7 +5,7 @@ import { buildEvidenceCatalog, evidenceReferenceIds, resolveAnalysisEvidence } f
 const MAX_SOURCE_CHARS = 80_000;
 const MAX_OUTPUT_BYTES = 128 * 1024;
 const PROMPT_VERSION = "resume-ai-v5";
-const ANALYSIS_PROMPT_VERSION = "resume-ai-v7";
+const ANALYSIS_PROMPT_VERSION = "resume-ai-v8";
 const correctableEvidenceFields = new Set([
   "strengths[].evidence", "weaknesses[].evidence", "recommendations[].evidence", "skill_assessments[].evidence",
 ]);
@@ -29,6 +29,7 @@ const ANALYSIS_PROMPT = [
   "Keep each finding or recommendation text within 400 characters. For missing_sections, keep section within 100 characters and reason within 240 characters. Keep each skill name within 80 characters and copy it exactly from the confirmed profile.",
   "All returned strings must contain non-whitespace text except recommendation evidence for absent information. Strength, weakness, and skill-assessment evidence must be non-empty catalog ids. When no catalog span supports a finding or assessment, return an empty array instead of inventing a reference. Write concise descriptions. Avoid control characters other than ordinary tabs and line breaks.",
   "Use integer scores from 0 to 100. Assess only skills whose exact names occur in the confirmed profile. The server calculates the overall score. Clarity means readable structure; relevance means focused entry-level career information; evidence means specific examples/results; completeness means contact/profile, education, experience/projects and skills are represented where available.",
+  "Every rubric and skill score is a percentage-point value on the full 0-100 scale: 70 means 70/100, while 7 means 7/100; do not use a 0-10 scale. Calibrate each criterion to the supplied evidence: 0-19 largely absent or unusable, 20-39 fragmentary, 40-59 basic or incomplete, 60-79 useful entry-level evidence with gaps, and 80-100 strong and well-supported. Genuine scores below 10 remain valid when justified. Do not inflate scores merely because the candidate is entry-level.",
 ].join(" ");
 // Groq enforces the shape on supported models. The validators below still enforce
 // application limits, rubric ranges, exact skill names and source evidence.
