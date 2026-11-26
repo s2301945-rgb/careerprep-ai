@@ -2,7 +2,7 @@
 
 CareerPrep AI helps college students and recent graduates organize resumes and prepare for entry-level applications. It includes sign-in, private PDF/DOCX uploads, resume management, editable profile extraction, AI resume analysis, saved job comparisons, and five-question text mock interviews. A signed-in rehearsal with synthetic data verified PDF upload, rename and private download, profile extraction and confirmation, saved analysis, job matching, a complete interview, and persistence after reload. See the [dated acceptance record](docs/06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) for the tested deployments and remaining checks.
 
-[Open CareerPrep AI](https://careerprep-ai-demo-221a.vercel.app). The app uses the [Railway API](https://careerprep-ai-production-89bf.up.railway.app), whose [readiness endpoint](https://careerprep-ai-production-89bf.up.railway.app/ready) checks the private application database.
+[Open CareerPrep AI](https://careerprep-ai-seven.vercel.app). The app uses the [Railway API](https://careerprep-ai-production-368d0279.up.railway.app), whose [readiness endpoint](https://careerprep-ai-production-368d0279.up.railway.app/ready) checks the private application database.
 
 ## How it works
 

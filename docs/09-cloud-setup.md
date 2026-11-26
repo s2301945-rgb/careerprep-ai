@@ -1,6 +1,6 @@
 # Connect Supabase, Railway and Vercel from VS Code
 
-The production backend runs on the `careerprep-ai` service in Railway's `capable-unity` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-89bf.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations; Storage and Groq credentials were still missing at that time. The [November 19–20 hosted rehearsal](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) subsequently passed private file operations and live AI workflows. The remaining frontend deployment and owner configuration are detailed below.
+The production backend runs on the `careerprep-ai` service in Railway's `sunny-beauty` project. It deploys `main` from `/backend` and checks [`/ready`](https://careerprep-ai-production-368d0279.up.railway.app/ready). The November 14, 2026 audit confirmed the database connection and six applied Supabase migrations; the [November 19–20 hosted rehearsal](06-sprint-log.md#signed-in-hosted-acceptance--november-1920-2026-asiamanila) passed private file operations and live AI workflows. On November 26, 2026, the backend was moved to `sunny-beauty` with a non-expiring `GROQ_API_KEY`, and the production frontend was switched to `xiee-t/careerprep-ai` at [`https://careerprep-ai-seven.vercel.app`](https://careerprep-ai-seven.vercel.app).
 
 The [November 20 setup deployment](06-sprint-log.md#frontend-production-update--november-20-2026-asiamanila) configured the three public Vercel Production settings, changed Node.js to 22.x and deployed tested commit `3998f66` to the submitted demo URL. Its accepted alias and retained application data were verified. Automatic frontend delivery and the final release gates still require owner/team action; the manual setup is not the recorded Deployment Challenge.
 
@@ -26,7 +26,7 @@ supabase config diff --remote=pvarmnhsotxuoqtvcwcb
 
 Compare each version in [the migration directory](../supabase/migrations) with the remote ledger. All six versions through `20261108100000` matched in the release audit. If the ledger differs, review the diff and dry-run pending migrations before applying them. The `resumes` bucket should be private and allow PDFs and DOCX files up to 10 MiB.
 
-The declared Auth confirmation destination is `https://careerprep-ai-demo-221a.vercel.app`; exact local and recorded review URLs are allowed too. These target settings are in [config.toml](../supabase/config.toml). Compare them with the hosted settings before applying a reviewed configuration update.
+The declared Auth confirmation destination is `https://careerprep-ai-seven.vercel.app`; exact local and recorded review URLs are allowed too. These target settings are in [config.toml](../supabase/config.toml). Compare them with the hosted settings before applying a reviewed configuration update.
 
 ### Signup email limits
 
@@ -73,7 +73,7 @@ Check [the production API's readiness](https://careerprep-ai-production-89bf.up.
 
 ## 4. Finish Vercel
 
-The accepted demo URL is [careerprep-ai-demo-221a.vercel.app](https://careerprep-ai-demo-221a.vercel.app), in the Vercel scope `wazapzjavellana-2496`. Its November 15 manual build calls the working Railway API, but the November 19 inspection found that it still lacked the newest merged frontend fixes. Older `careerprep-ai-seven` and `careerprep-ai-ten` links are historical setup deployments and should not be used for submission.
+The active production frontend URL is [careerprep-ai-seven.vercel.app](https://careerprep-ai-seven.vercel.app), in the Vercel scope `xiee-t` (`prj_EzVr9hqE2eNMW5D6h3XcDGUFE56s`). Earlier `careerprep-ai-demo-221a` and `careerprep-ai-ten` links are historical deployments.
 
 In **Settings > Environment Variables**, configure Production variables `NEXT_PUBLIC_API_URL` (the working Railway API), `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (a public anon or publishable key). No stored Production variables were present at the November 19 inspection, despite the old build having public settings embedded. Verify the matching Auth redirect URL, approve and set the project's Node.js version to `22.x` to match CI, then deploy the checked revision. Next.js embeds `NEXT_PUBLIC_` values at build time. Confirm the deployed revision before repeating browser acceptance.
 
