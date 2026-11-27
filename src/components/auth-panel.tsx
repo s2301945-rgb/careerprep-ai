@@ -67,7 +67,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
           <p>Keep your resume ready, organized, and in one private workspace as you prepare for your next opportunity.</p>
         </div>
         <div className="auth-proof" aria-label="Workspace features">
-          <div><span className="proof-icon" aria-hidden="true">01</span><span>Keep every version close</span></div>
+          <div><span className="proof-icon" aria-hidden="true">01</span><span>Keep every resume version close</span></div>
           <div><span className="proof-icon" aria-hidden="true">02</span><span>Manage your documents securely</span></div>
           <div><span className="proof-icon" aria-hidden="true">03</span><span>Prepare confidently at your own pace</span></div>
         </div>
