@@ -4,6 +4,13 @@ CareerPrep AI helps college students and recent graduates organize resumes and p
 
 [Open CareerPrep AI](https://careerprep-ai-seven.vercel.app). The app uses the [Railway API](https://careerprep-ai-production-368d0279.up.railway.app), whose [readiness endpoint](https://careerprep-ai-production-368d0279.up.railway.app/ready) checks the private application database.
 
+## Final technical handoff
+
+- [Editable Google Doc](https://docs.google.com/document/d/16SksFDF_41T1fO3LwuHFcjWm8dDqLFOaxgHEQ8fs5P0/edit)
+- [Three-page submission PDF](docs/CareerPrep-AI-Final-Technical-Documentation.pdf)
+
+The handoff records the verified implementation, deployment evidence, tests, known limitations, and remaining release gates without exposing credentials.
+
 ## How it works
 
 The Next.js frontend uses Supabase Auth for sign-in. It sends authenticated resume requests to a standalone Node.js API. The API enforces ownership, stores metadata and results in Supabase PostgreSQL, and keeps originals in a private Supabase Storage bucket. During extraction and analysis, the API sends extracted text to Groq, checks the returned structure and evidence, and saves the result. The user reviews and confirms the profile before requesting analysis.
