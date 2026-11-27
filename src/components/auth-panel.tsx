@@ -69,7 +69,7 @@ export function AuthPanel({ sessionNotice = "" }: { sessionNotice?: string }) {
         <div className="auth-proof" aria-label="Workspace features">
           <div><span className="proof-icon" aria-hidden="true">01</span><span>Keep every version close</span></div>
           <div><span className="proof-icon" aria-hidden="true">02</span><span>Manage your documents securely</span></div>
-          <div><span className="proof-icon" aria-hidden="true">03</span><span>Prepare at your own pace</span></div>
+          <div><span className="proof-icon" aria-hidden="true">03</span><span>Prepare confidently at your own pace</span></div>
         </div>
         <div className="story-orbit story-orbit-one" aria-hidden="true" />
         <div className="story-orbit story-orbit-two" aria-hidden="true" />
